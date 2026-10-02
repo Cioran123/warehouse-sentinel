@@ -6,9 +6,9 @@ import { dismissToast, useToasts, type ToastType } from "@/app/lib/ui/useToast";
 const AUTO_DISMISS_MS = 4_000;
 
 const STYLE: Record<ToastType, string> = {
-  info: "border-white/15 bg-[#0c0c12] text-slate-200",
-  success: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
-  error: "border-red-500/50 bg-red-500/10 text-red-100",
+  info: "border-line bg-surface text-ink",
+  success: "border-line bg-surface text-ink",
+  error: "border-high-line bg-high-soft text-high",
 };
 
 export default function ToastContainer() {
@@ -36,13 +36,13 @@ export default function ToastContainer() {
         <div
           key={t.id}
           role="status"
-          className={`pointer-events-auto flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-sm shadow-lg shadow-black/40 backdrop-blur ${STYLE[t.type]}`}
+          className={`pointer-events-auto flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-sm shadow-lg shadow-ink/10 ${STYLE[t.type]}`}
         >
           <span className="min-w-0 flex-1 break-words">{t.message}</span>
           <button
             type="button"
             onClick={() => dismissToast(t.id)}
-            className="shrink-0 text-slate-400 transition-colors hover:text-white"
+            className="shrink-0 text-ink-2 transition-colors hover:text-ink"
             aria-label="Dismiss notification"
           >
             ×

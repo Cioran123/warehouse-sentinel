@@ -38,6 +38,14 @@ DEFAULTS = {
     # filters out parked forklifts and detector jitter
     "near_min_vehicle_speed": 0.15,
     "near_speed_lag_sec": 1.0,
+    # vehicle box height in the person's body-heights; a forklift mast stands well above a
+    # worker, while the pallet jacks and carts workers push alongside them are shorter
+    "near_min_vehicle_height_ratio": 1.8,
+    # missing hard hat, only on cameras with "ppeRequired": a track needs this many judged
+    # frames, most of them bare-headed and almost none showing a shell
+    "ppe_min_frames": 4,
+    "ppe_min_none_share": 0.7,
+    "ppe_max_hat_share": 0.2,
     # person down / inactivity
     "inactive_min_sec": 6.0,
     "inactive_low_aspect": 1.2,
@@ -172,6 +180,8 @@ def check_near_miss(cam: dict, data: dict, th: dict) -> list[Candidate]:
             if speed < th["near_min_vehicle_speed"]:
                 continue
             for p in f["boxes"]:
+                if v["box"][3] - v["box"][1] < th["near_min_vehicle_height_ratio"] * (p["box"][3] - p["box"][1]):
+                    continue
                 gap = _foot_gap(p, v)
                 if gap <= th["near_max_gap_heights"]:
                     close[(p["id"], v["id"])][fi] = (gap, speed)
@@ -199,6 +209,38 @@ def check_near_miss(cam: dict, data: dict, th: dict) -> list[Candidate]:
                          "closeSec": round(end - start, 2), "vehicleTrack": float(vid)},
                 track_ids=[pid],
             ))
+    return out
+
+
+def check_missing_hard_hat(cam: dict, data: dict, th: dict) -> list[Candidate]:
+    """A tracked person whose head reads as bare (or a soft cap) in most judged frames.
+
+    Labels come from detect.py's head classifier (pipeline/ppe.py). Only runs where the camera
+    is marked "ppeRequired", which is how hard-hat areas work on a real floor."""
+    if not cam.get("ppeRequired"):
+        return []
+    out = []
+    for tid, samples in _by_track(data["frames"]).items():
+        judged = [(t, b["ppe"]) for t, b in samples if b.get("ppe") in ("hat", "none")]
+        if len(judged) < th["ppe_min_frames"]:
+            continue
+        bare = [t for t, label in judged if label == "none"]
+        none_share = len(bare) / len(judged)
+        hat_share = 1 - none_share
+        if none_share < th["ppe_min_none_share"] or hat_share > th["ppe_max_hat_share"]:
+            continue
+        s, e = _window(bare[0], bare[-1], data["durationSec"], pre=1, post=1, max_len=th["max_clip_sec"])
+        out.append(Candidate(
+            camera_id=cam["id"], event_type="ppe_missing_hard_hat", start_sec=s, end_sec=e,
+            priority="medium",
+            observations=[
+                f"tracked person #{tid} in a hard-hat area shows no hard hat in {len(bare)} of {len(judged)} "
+                f"frames where the head was clear enough to judge ({_ts(bare[0])} to {_ts(bare[-1])})",
+            ],
+            signals={"bareFrames": float(len(bare)), "judgedFrames": float(len(judged)),
+                     "bareShare": round(none_share, 2)},
+            track_ids=[tid],
+        ))
     return out
 
 
@@ -340,6 +382,7 @@ def generate_candidates(camera_id: str) -> list[dict]:
     raw = (
         check_restricted_zone(cam, data, th)
         + check_near_miss(cam, data, th)
+        + check_missing_hard_hat(cam, data, th)
         + check_inactivity(cam, data, th)
         + check_lying(cam, data, th)
     )

@@ -29,7 +29,7 @@ function withTimestamps(text: string, onSeek: (t: number) => void): ReactNode[] 
         key={`${m.index}-${t}`}
         type="button"
         onClick={() => onSeek(t)}
-        className="mx-0.5 inline-flex items-center gap-1 rounded bg-sky-400/15 px-1.5 py-0 font-mono text-[11px] text-sky-200 hover:bg-sky-400/30"
+        className="mx-0.5 inline-flex items-center gap-1 rounded bg-accent-soft px-1.5 py-0 font-mono text-[11px] text-accent hover:bg-accent/15"
         title="Jump to this moment"
       >
         ▶ {formatTime(t)}
@@ -79,21 +79,21 @@ export default function ClipChat({ incident, onSeek }: { incident: Incident; onS
   };
 
   return (
-    <section className="flex flex-col rounded-xl border border-white/10 bg-[#0c0c12]">
+    <section className="flex flex-col rounded-xl border border-line bg-surface">
       <div ref={scrollRef} className="flex max-h-[420px] min-h-[160px] flex-col gap-3 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="flex flex-col gap-2">
-            <p className="text-[12px] text-slate-400">
+            <p className="text-[13px] leading-relaxed text-ink-2">
               Ask what happens in this clip. Answers use keyframes from the span plus the recorded evidence, and
-              cited moments like <span className="font-mono text-sky-300">▶ 0:12</span> jump the player.
+              cited moments like <span className="font-mono text-accent">▶ 0:12</span> jump the player.
             </p>
-            <div className="flex flex-col items-start gap-1.5">
+            <div className="-mx-2 flex flex-col items-start">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => void ask(s)}
-                  className="rounded-full border border-white/10 px-2.5 py-1 text-left text-[11px] text-slate-400 transition-colors hover:border-white/25 hover:text-slate-200"
+                  className="rounded-md px-2 py-1.5 text-left text-[13px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
                 >
                   {s}
                 </button>
@@ -103,24 +103,24 @@ export default function ClipChat({ incident, onSeek }: { incident: Incident; onS
         )}
         {messages.map((m) =>
           m.role === "user" ? (
-            <div key={m.id} className="self-end rounded-xl rounded-tr-sm bg-sky-500/15 px-3 py-2 text-[13px] text-sky-50">
+            <div key={m.id} className="max-w-[85%] self-end rounded-xl bg-sunken px-3 py-2 text-[13px] text-ink">
               {m.content}
             </div>
           ) : (
             <div key={m.id} className="flex flex-col gap-1">
               <div
-                className={`whitespace-pre-wrap rounded-xl rounded-tl-sm px-3 py-2 text-[13px] leading-relaxed ${
+                className={`whitespace-pre-wrap text-[13px] leading-relaxed ${
                   m.error
-                    ? "border border-red-500/40 bg-red-500/10 text-red-100"
+                    ? "rounded-lg border border-high-line bg-high-soft px-3 py-2 text-high"
                     : m.mode === "refused"
-                      ? "border border-amber-500/40 bg-amber-500/10 text-amber-100"
-                      : "bg-white/[0.05] text-slate-200"
+                      ? "rounded-lg border border-medium-line bg-medium-soft px-3 py-2 text-medium"
+                      : "text-ink"
                 }`}
               >
                 {withTimestamps(m.content, onSeek)}
               </div>
               {m.mode && m.mode !== "claude" && (
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[12px] text-ink-3">
                   {m.mode === "evidence" ? "Recorded evidence only (no model configured)" : "Out of scope for this system"}
                 </span>
               )}
@@ -128,10 +128,10 @@ export default function ClipChat({ incident, onSeek }: { incident: Incident; onS
           ),
         )}
         {loading && (
-          <div className="flex items-center gap-2 self-start rounded-xl bg-white/[0.05] px-3 py-2 text-[11px] text-slate-400">
+          <div className="flex items-center gap-2 self-start py-1 text-[12px] text-ink-3">
             <span className="flex gap-1">
               {[0, 150, 300].map((d) => (
-                <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: `${d}ms` }} />
+                <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3" style={{ animationDelay: `${d}ms` }} />
               ))}
             </span>
             Looking at keyframes…
@@ -143,19 +143,19 @@ export default function ClipChat({ incident, onSeek }: { incident: Incident; onS
           e.preventDefault();
           void ask(input);
         }}
-        className="flex gap-2 border-t border-white/10 p-3"
+        className="m-3 flex items-center gap-2 rounded-lg border border-line-strong bg-surface p-1 pl-3 transition-shadow focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--color-accent-soft)]"
       >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           maxLength={500}
           placeholder="Ask about this clip…"
-          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#09090f] px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-white/30 focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent py-1.5 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus-visible:outline-none"
         />
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="rounded-lg bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:opacity-40"
+          className="rounded-md bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-accent-hover disabled:bg-sunken disabled:text-ink-3"
         >
           Ask
         </button>

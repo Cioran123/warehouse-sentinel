@@ -4,15 +4,14 @@ import { useEffect, useState } from "react";
 import type { CameraStatus, IndexStatus } from "@/app/lib/cameraStatus";
 import { formatSpan } from "@/app/lib/format";
 import { EVENT_LABEL, PRIORITY_COLOR, type CameraTracks, type Incident } from "@/app/lib/types";
-import { SourceBadge, VerificationBadge } from "./Badges";
+import { VerificationBadge } from "./Badges";
 import IncidentLink from "./IncidentLink";
 import TrackOverlay, { nearestFrame } from "./TrackOverlay";
 
-const INDEX_LABEL: Record<IndexStatus, { text: string; color: string }> = {
-  missing_video: { text: "Awaiting footage", color: "#94a3b8" },
-  not_indexed: { text: "Not indexed", color: "#94a3b8" },
-  tracked: { text: "Tracked, no incidents", color: "#60a5fa" },
-  indexed: { text: "Indexed", color: "#22c55e" },
+/** Only states that need the supervisor's attention get a note; indexed cameras say nothing. */
+const INDEX_NOTE: Partial<Record<IndexStatus, string>> = {
+  missing_video: "Awaiting footage",
+  not_indexed: "Not indexed yet",
 };
 
 interface Props {
@@ -23,12 +22,14 @@ interface Props {
   onTime: (cameraId: string, t: number) => void;
   /** The camera's zone is selected on the venue map. */
   selected?: boolean;
+  /** The assistant's latest answer mentions this camera's zone. */
+  highlighted?: boolean;
   onSelectZone?: () => void;
 }
 
-export default function CameraTile({ status, showOverlay, active, onTime, selected = false, onSelectZone }: Props) {
-  const { camera, indexStatus, latest, incidentCount, keptCount } = status;
-  const idx = INDEX_LABEL[indexStatus];
+export default function CameraTile({ status, showOverlay, active, onTime, selected = false, highlighted = false, onSelectZone }: Props) {
+  const { camera, indexStatus, latest, incidentCount } = status;
+  const note = INDEX_NOTE[indexStatus];
   const [tracks, setTracks] = useState<CameraTracks | null>(null);
   const [time, setTime] = useState(0);
   const hasVideo = indexStatus !== "missing_video";
@@ -53,18 +54,20 @@ export default function CameraTile({ status, showOverlay, active, onTime, select
 
   return (
     <div
-      className={`flex flex-col overflow-hidden rounded-xl border bg-[#0c0c12] ${top ? "tile-alert" : selected ? "border-sky-400/70" : "border-white/10"} ${selected ? "ring-2 ring-sky-400/40" : ""}`}
+      className={`flex flex-col overflow-hidden rounded-xl border bg-surface transition-[border-color,box-shadow] duration-200 ${
+        top ? "tile-alert" : selected ? "border-accent shadow-[0_0_0_3px_var(--color-accent-soft)]" : highlighted ? "border-accent-line" : "border-line hover:border-line-strong"
+      }`}
       style={pulseColor ? ({ "--pulse": pulseColor } as React.CSSProperties) : undefined}
     >
       <div
-        className={`relative aspect-video bg-black ${onSelectZone ? "cursor-pointer" : ""}`}
+        className={`relative aspect-video bg-footage ${onSelectZone ? "cursor-pointer" : ""}`}
         onClick={onSelectZone}
-        title={onSelectZone ? `${selected ? "Clear" : "Focus"} ${camera.zone} on the map` : undefined}
+        title={onSelectZone ? `${selected ? "Clear focus on" : "Focus"} ${camera.zone}` : undefined}
       >
         {!hasVideo ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs text-slate-500">
-            <span className="text-sm text-slate-400">Awaiting footage</span>
-            <span>Add shots to footage/{camera.id}/ and run pipeline/assemble.py</span>
+          <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
+            <span className="text-[13px] font-medium text-white/80">Awaiting footage</span>
+            <span className="text-[12px] text-white/50">Add shots to footage/{camera.id}/ and run pipeline/assemble.py</span>
           </div>
         ) : (
           <>
@@ -89,52 +92,51 @@ export default function CameraTile({ status, showOverlay, active, onTime, select
             )}
           </>
         )}
-        <div className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 font-mono text-[11px] text-white">
-          {camera.id} · {camera.zone.toUpperCase()}
-          {frame ? ` · ${frame.boxes.length} people` : ""}
-          {frame?.vehicles?.length ? ` · ${frame.vehicles.length} vehicle${frame.vehicles.length === 1 ? "" : "s"}` : ""}
-        </div>
-        <div className="absolute right-2 top-2">
-          <SourceBadge sourceType={camera.sourceType} />
-        </div>
+        {frame && (
+          <div className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] tabular-nums text-white/90">
+            {frame.boxes.length} {frame.boxes.length === 1 ? "person" : "people"}
+            {frame.vehicles?.length ? ` · ${frame.vehicles.length} vehicle${frame.vehicles.length === 1 ? "" : "s"}` : ""}
+          </div>
+        )}
         {top && (
           <IncidentLink
             id={top.id}
-            className="absolute left-2 top-2 rounded px-2 py-0.5 text-[11px] font-semibold text-white hover:brightness-125"
-            style={{ background: `${pulseColor}cc` }}
+            className="absolute left-2 top-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-white shadow-sm transition-[filter] hover:brightness-110"
+            style={{ background: pulseColor }}
             title="Open this incident"
           >
-            ● {EVENT_LABEL[top.eventType]} · review
+            {EVENT_LABEL[top.eventType]}
+            <span className="text-white/75">Review →</span>
           </IncidentLink>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="flex items-center gap-1.5" style={{ color: idx.color }}>
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: idx.color }} />
-            {idx.text}
+      <div className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-[13px] font-medium text-ink">{camera.zone}</span>
+          <span className="flex-shrink-0 font-mono text-[11px] text-ink-3">
+            {note ? `${note} · ` : ""}
+            {camera.id}
           </span>
-          {hasVideo && (
-            <span className="text-slate-500">
-              {incidentCount} candidate{incidentCount === 1 ? "" : "s"} · {keptCount} kept
-            </span>
-          )}
         </div>
         {latest ? (
           <IncidentLink
             id={latest.id}
-            className="rounded-lg border border-white/5 bg-white/[0.03] p-2 transition-colors hover:border-white/20"
+            className="-mx-1.5 flex flex-col gap-1 rounded-lg px-1.5 py-1 transition-colors hover:bg-sunken"
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-xs font-medium text-slate-200">{EVENT_LABEL[latest.eventType]}</span>
-              <span className="font-mono text-[11px] text-slate-500">{formatSpan(latest.startSec, latest.endSec)}</span>
-            </div>
-            <div className="mt-1.5">
+            <span className="flex items-baseline justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: PRIORITY_COLOR[latest.priority] }} />
+                <span className="truncate text-[12px] text-ink-2">{EVENT_LABEL[latest.eventType]}</span>
+              </span>
+              <span className="flex-shrink-0 font-mono text-[11px] text-ink-3">{formatSpan(latest.startSec, latest.endSec)}</span>
+            </span>
+            <span className="flex items-center justify-between gap-2 pl-3">
               <VerificationBadge status={latest.verificationStatus} />
-            </div>
+              {incidentCount > 1 && <span className="text-[11px] text-ink-3">+{incidentCount - 1} more</span>}
+            </span>
           </IncidentLink>
         ) : (
-          <p className="text-xs text-slate-600">{hasVideo ? "No candidate or verified incident." : camera.scenario}</p>
+          <p className="text-[12px] text-ink-3">{hasVideo ? "No incidents flagged" : camera.scenario}</p>
         )}
       </div>
     </div>

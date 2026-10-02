@@ -1,6 +1,7 @@
 export type EventType =
   | "restricted_zone_entry"
   | "vehicle_pedestrian_proximity"
+  | "ppe_missing_hard_hat"
   | "person_down_or_inactivity";
 
 export type Priority = "low" | "medium" | "high";
@@ -122,6 +123,10 @@ export interface TrackFrame {
 export interface CameraTracks {
   cameraId: string;
   fps: number;
+  /** Source frame size in pixels, needed to turn normalized boxes back into real aspect ratios. */
+  width?: number;
+  height?: number;
+  durationSec?: number;
   roi?: Point[];
   synthetic?: boolean;
   frames: TrackFrame[];
@@ -145,19 +150,30 @@ export interface EvalSummary {
 export const EVENT_LABEL: Record<EventType, string> = {
   restricted_zone_entry: "Person in restricted area",
   vehicle_pedestrian_proximity: "Possible forklift–pedestrian near miss",
+  ppe_missing_hard_hat: "Possible missing hard hat",
   person_down_or_inactivity: "Person down / prolonged inactivity",
+};
+
+/** Terse forms for map pins and other places with no room for the full sentence. */
+export const EVENT_LABEL_SHORT: Record<EventType, string> = {
+  restricted_zone_entry: "Restricted entry",
+  vehicle_pedestrian_proximity: "Near miss",
+  ppe_missing_hard_hat: "No hard hat",
+  person_down_or_inactivity: "Person down",
 };
 
 export const EVENT_TYPES = Object.keys(EVENT_LABEL) as EventType[];
 
+/** Hex twins of --color-high/medium/low in globals.css (inline styles append alpha suffixes). */
 export const PRIORITY_COLOR: Record<Priority, string> = {
-  low: "#84cc16",
-  medium: "#eab308",
-  high: "#ef4444",
+  low: "#3f8a4f",
+  medium: "#b07a12",
+  high: "#d03b2f",
 };
 
+/** Verified reads strongest; unverified and rejected step down in weight, not hue. */
 export const STATUS_COLOR: Record<VerificationStatus, string> = {
-  candidate: "#94a3b8",
-  kept: "#22c55e",
-  rejected: "#64748b",
+  candidate: "#8a909c",
+  kept: "#2b3140",
+  rejected: "#c4c8cf",
 };

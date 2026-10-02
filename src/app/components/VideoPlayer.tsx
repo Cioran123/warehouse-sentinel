@@ -71,7 +71,7 @@ export default function VideoPlayer({ ref, src, onTimeChange, onDurationChange, 
   );
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black">
+    <div className="relative overflow-hidden rounded-xl border border-line bg-footage">
       <video
         ref={videoRef}
         controls

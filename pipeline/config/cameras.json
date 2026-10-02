@@ -4,49 +4,82 @@
   "cameras": [
     {
       "id": "WH_CAM_01",
-      "zone": "Receiving Dock",
-      "zoneId": "receiving_dock",
+      "zone": "Forklift Lane",
+      "zoneId": "forklift_lane",
       "videoFile": "WH_CAM_01.mp4",
-      "durationSec": 60,
+      "durationSec": 10,
       "sourceType": "synthetic_sdg",
-      "scenario": "PLACEHOLDER: dock doors and staging lanes; forklifts unload pallets while workers check stock. Replace after reviewing the VAST clips.",
-      "groundTruth": { "eventType": "vehicle_pedestrian_proximity", "startSec": 20, "endSec": 35 }
+      "scenario": "An order-picker forklift pivots in the lane by the dock doors and swings into a worker walking beside it.",
+      "groundTruth": {
+        "eventType": "vehicle_pedestrian_proximity",
+        "startSec": 1,
+        "endSec": 5
+      }
     },
     {
       "id": "WH_CAM_02",
-      "zone": "Aisle A",
-      "zoneId": "aisle_a",
+      "zone": "Staging Floor",
+      "zoneId": "staging_floor",
       "videoFile": "WH_CAM_02.mp4",
-      "durationSec": 60,
+      "durationSec": 5,
       "sourceType": "synthetic_sdg",
-      "scenario": "PLACEHOLDER: a racked aisle with a forklift-only lane down the middle; a pedestrian steps into the lane. Replace after reviewing the VAST clips.",
-      "restrictedPolygons": [
-        [[0.4, 0.25], [0.6, 0.25], [0.75, 1.0], [0.25, 1.0]]
-      ],
-      "groundTruth": { "eventType": "restricted_zone_entry", "startSec": 25, "endSec": 40 }
+      "scenario": "Busy staging floor in front of the pallet racking; most workers wear hard hats, at least one does not.",
+      "groundTruth": {
+        "eventType": "ppe_missing_hard_hat",
+        "startSec": 0,
+        "endSec": 5
+      },
+      "ppeRequired": true
     },
     {
       "id": "WH_CAM_03",
-      "zone": "Pick Zone",
-      "zoneId": "pick_zone",
+      "zone": "Cross Aisle",
+      "zoneId": "cross_aisle",
       "videoFile": "WH_CAM_03.mp4",
-      "durationSec": 60,
+      "durationSec": 5,
       "sourceType": "synthetic_sdg",
-      "scenario": "PLACEHOLDER: pickers working rack faces; one person goes down and stays low. Replace after reviewing the VAST clips.",
-      "groundTruth": { "eventType": "person_down_or_inactivity", "startSec": 30, "endSec": 45 }
+      "scenario": "Open cross aisle with a marked robot/AMR-only lane; a worker walks into the marked lane.",
+      "restrictedPolygons": [
+        [
+          [
+            0.6,
+            0.3
+          ],
+          [
+            1.0,
+            0.3
+          ],
+          [
+            1.0,
+            0.75
+          ],
+          [
+            0.6,
+            0.75
+          ]
+        ]
+      ],
+      "groundTruth": {
+        "eventType": "restricted_zone_entry",
+        "startSec": 0,
+        "endSec": 5
+      }
     },
     {
       "id": "WH_CAM_04",
-      "zone": "Charging Station",
-      "zoneId": "charging_station",
+      "zone": "Dock Wall",
+      "zoneId": "dock_wall",
       "videoFile": "WH_CAM_04.mp4",
-      "durationSec": 60,
+      "durationSec": 5,
       "sourceType": "synthetic_sdg",
-      "scenario": "PLACEHOLDER: forklifts parked at chargers with people walking past. Normal activity; used to measure false positives. Replace after reviewing the VAST clips."
+      "scenario": "A loaded pallet jack and a delivery robot move along the dock wall; no people. Normal activity, used to measure false positives."
     }
   ],
   "normalSegments": [
-    { "cameraId": "WH_CAM_01", "startSec": 2, "endSec": 12 },
-    { "cameraId": "WH_CAM_04", "startSec": 10, "endSec": 50 }
+    {
+      "cameraId": "WH_CAM_04",
+      "startSec": 0,
+      "endSec": 5
+    }
   ]
 }

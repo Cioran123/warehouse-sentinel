@@ -91,7 +91,7 @@ function mergeFollowUp(ctx: SearchFilters, latest: SearchFilters, question: stri
 
 function incidentLine(i: Incident): string {
   const notes = (i.observations.length ? i.observations : i.signalNotes ?? []).slice(0, 2).join("; ");
-  return `- ${i.id}: ${EVENT_LABEL[i.eventType]} at ${i.zone} (${i.cameraId}, ${formatSpan(i.startSec, i.endSec)}), ${i.priority} priority, ${STATUS_TEXT[i.verificationStatus]}${notes ? `. Evidence: ${notes}` : ""}`;
+  return `- ${i.id}: ${EVENT_LABEL[i.eventType]} at ${i.zone} (${i.cameraId}, ${formatSpan(i.startSec, i.endSec)}), ${i.priority} priority, ${STATUS_TEXT[i.verificationStatus]}${i.evidenceClipUrl ? ", clip attached" : ""}${notes ? `. Evidence: ${notes}` : ""}`;
 }
 
 function templateReply(res: SearchResponse, cameras: Camera[]): string {
@@ -103,10 +103,12 @@ function templateReply(res: SearchResponse, cameras: Camera[]): string {
   const n = res.results.length;
   const top = res.results[0];
   const zones = new Set(res.results.map((i) => i.cameraId));
+  const clips = res.results.filter((i) => i.evidenceClipUrl).length;
   return [
     `${n} matching incident${n === 1 ? "" : "s"} (${describeFilters(res.filters, cameras)}).`,
     `Highest priority: ${EVENT_LABEL[top.eventType].toLowerCase()} at ${top.zone} (${top.cameraId}, ${formatSpan(top.startSec, top.endSec)}, ${STATUS_TEXT[top.verificationStatus]}).`,
     zones.size > 1 ? `Spread across ${zones.size} cameras.` : "",
+    clips > 0 ? `${clips === 1 ? "The clip is" : `${clips} clips are`} attached below.` : "",
     "Review recommended before acting.",
   ]
     .filter(Boolean)
@@ -127,6 +129,7 @@ async function claudeReply(
 Answer the operator's latest question using ONLY the search results below. Do not invent incidents, times, or details.
 Use cautious language ("possible", "review recommended"). Never claim identity, intent, blame, or medical conditions, and never judge individual workers.
 Keep the reply to 1-3 sentences (under 70 words). Mention zones and camera ids where useful.
+Every result marked "clip attached" is played directly below your reply, so you can point the operator to it instead of describing the footage.
 
 Conversation so far:
 ${history.slice(-6).map((t) => `${t.role}: ${t.content}`).join("\n")}

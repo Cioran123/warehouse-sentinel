@@ -10,26 +10,22 @@ import ChatPanel from "./ChatPanel";
 import EvalPanel from "./EvalPanel";
 import IncidentDrawer from "./IncidentDrawer";
 import IncidentFeed from "./IncidentFeed";
-import VenuePanel from "./VenuePanel";
 
 interface Props {
-  venueName: string;
   statuses: CameraStatus[];
   /** Non-rejected incidents. */
   incidents: Incident[];
   zones: ZoneCount[];
-  rejectedCount: number;
   evalSummary: EvalSummary | null;
   initialZoneId: string | null;
   initialIncidentId: string | null;
   initialQuery: string | null;
 }
 
-type MobilePanel = "map" | "cameras" | "chat";
+type MobilePanel = "cameras" | "chat";
 
 const MOBILE_PANELS: [MobilePanel, string][] = [
   ["cameras", "Cameras"],
-  ["map", "Floor plan"],
   ["chat", "Assistant"],
 ];
 
@@ -60,11 +56,9 @@ function Shortcuts({ statuses, onChat }: { statuses: CameraStatus[]; onChat: () 
 }
 
 export default function CommandCenter({
-  venueName,
   statuses,
   incidents,
   zones,
-  rejectedCount,
   evalSummary,
   initialZoneId,
   initialIncidentId,
@@ -79,7 +73,7 @@ export default function CommandCenter({
     <CommandProvider incidents={incidents} initialZoneId={initialZoneId} initialIncidentId={initialIncidentId}>
       <Shortcuts statuses={statuses} onChat={showChat} />
       <div className="flex flex-col lg:h-full lg:min-h-0">
-        <div className="flex gap-1 border-b border-white/[0.08] p-2 lg:hidden" role="tablist">
+        <div className="flex gap-1 border-b border-line bg-surface p-2 lg:hidden" role="tablist">
           {MOBILE_PANELS.map(([id, label]) => (
             <button
               key={id}
@@ -87,49 +81,40 @@ export default function CommandCenter({
               role="tab"
               aria-selected={panel === id}
               onClick={() => setPanel(id)}
-              className={`flex-1 rounded-md px-3 py-1.5 text-sm ${panel === id ? "bg-white/10 text-white" : "text-slate-400"}`}
+              className={`flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium ${panel === id ? "bg-sunken text-ink" : "text-ink-3"}`}
             >
               {label}
             </button>
           ))}
         </div>
 
-        <div className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(320px,5fr)_minmax(0,7fr)_minmax(320px,380px)] lg:grid-rows-[minmax(0,1fr)_auto]">
-          <aside className={`${show("map")} flex-col gap-3 overflow-y-auto p-4 lg:col-start-1 lg:row-start-1 lg:flex lg:border-r lg:border-white/[0.08]`}>
-            <VenuePanel
-              venueName={venueName}
-              zones={zones}
-              statuses={statuses}
-              rejectedCount={rejectedCount}
-            />
-          </aside>
-
-          <section className={`${show("cameras")} min-w-0 flex-col gap-4 overflow-y-auto p-4 lg:col-start-2 lg:row-start-1 lg:flex`}>
+        <div className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_minmax(340px,400px)] lg:grid-rows-[minmax(0,1fr)_auto]">
+          <section className={`${show("cameras")} min-w-0 flex-col gap-5 overflow-y-auto p-6 lg:col-start-1 lg:row-start-1 lg:flex`}>
             <CameraWall statuses={statuses} />
-            <details className="group rounded-xl border border-white/10 bg-[#0c0c12]">
-              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm text-slate-300">
+            <details className="group rounded-xl border border-line bg-surface">
+              <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl px-4 py-3 text-[13px] transition-colors hover:bg-sunken">
                 <span>
-                  <span className="font-semibold text-white">Evaluation vs. ground truth</span>
-                  <span className="ml-2 text-[11px] text-slate-500">
+                  <span className="font-medium text-ink">Evaluation against ground truth</span>
+                  <span className="ml-2 text-[12px] text-ink-3">
                     {statuses.length} cameras · {withFootage} with footage
                     {evalSummary?.metrics.detected_rate !== undefined
                       ? ` · ${Math.round(evalSummary.metrics.detected_rate * 100)}% scenarios surfaced`
                       : ""}
                   </span>
                 </span>
-                <span className="text-slate-500 transition-transform group-open:rotate-90">›</span>
+                <span className="text-ink-3 transition-transform duration-200 group-open:rotate-90">›</span>
               </summary>
-              <div className="border-t border-white/10 [&>section]:border-0 [&>section]:bg-transparent">
+              <div className="border-t border-line [&>section]:border-0 [&>section]:bg-transparent">
                 <EvalPanel summary={evalSummary} />
               </div>
             </details>
           </section>
 
-          <aside className={`${show("chat")} min-h-[70vh] flex-col lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:flex lg:min-h-0 lg:border-l lg:border-white/[0.08]`}>
+          <aside className={`${show("chat")} min-h-[70vh] flex-col lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:flex lg:min-h-0 lg:border-l lg:border-line`}>
             <ChatPanel zones={zones} initialQuery={initialQuery} />
           </aside>
 
-          <div className="min-w-0 lg:col-span-2 lg:col-start-1 lg:row-start-2">
+          <div className="min-w-0 lg:col-start-1 lg:row-start-2">
             <IncidentFeed />
           </div>
         </div>

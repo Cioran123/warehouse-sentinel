@@ -6,12 +6,11 @@ export const STORAGE_ROOT = path.resolve(process.cwd(), "storage");
 export const VIDEOS_DIR = path.join(STORAGE_ROOT, "videos");
 /** Short candidate clips cut by pipeline/verify.py, named `<incidentId>.mp4`. */
 export const CLIPS_DIR = path.join(STORAGE_ROOT, "clips");
-export const REELS_DIR = path.join(STORAGE_ROOT, "reels");
 /** Pipeline intermediates: `<cameraId>.tracks.json`, `eval.json`. */
 export const PIPELINE_DIR = path.join(STORAGE_ROOT, "pipeline");
 export const DB_DIR = path.join(STORAGE_ROOT, "db");
 
-const REQUIRED_DIRS = [STORAGE_ROOT, VIDEOS_DIR, CLIPS_DIR, REELS_DIR, PIPELINE_DIR, DB_DIR];
+const REQUIRED_DIRS = [STORAGE_ROOT, VIDEOS_DIR, CLIPS_DIR, PIPELINE_DIR, DB_DIR];
 
 async function ensureDirs(): Promise<void> {
   await Promise.all(REQUIRED_DIRS.map((dir) => fs.mkdir(dir, { recursive: true })));
@@ -41,7 +40,7 @@ class Mutex {
 
 const mutex = new Mutex();
 
-export type TableName = "incidents" | "reels";
+export type TableName = "incidents";
 
 function tablePath(name: TableName): string {
   return path.join(DB_DIR, `${name}.json`);

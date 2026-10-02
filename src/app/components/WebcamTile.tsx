@@ -41,12 +41,12 @@ const PENDING: LiveEventStatus[] = ["recording", "verifying"];
 const DONE: LiveEventStatus[] = ["kept", "rejected", "candidate"];
 const VERIFIER_NAME: Record<string, string> = { cosmos: "Cosmos", claude: "Claude", none: "No verifier" };
 const STATUS_STYLE: Record<LiveEventStatus, { color: string; text: (verifier: string) => string }> = {
-  recording: { color: "#f59e0b", text: () => "recording aftermath" },
-  verifying: { color: "#f59e0b", text: (v) => `${v} checking…` },
-  kept: { color: "#22c55e", text: (v) => `${v}: kept` },
-  rejected: { color: "#64748b", text: (v) => `${v}: dropped` },
-  candidate: { color: "#94a3b8", text: () => "unverified" },
-  error: { color: "#ef4444", text: () => "failed" },
+  recording: { color: "#b07a12", text: () => "Recording aftermath" },
+  verifying: { color: "#b07a12", text: (v) => `${v} checking…` },
+  kept: { color: "#2b3140", text: (v) => `${v}: verified` },
+  rejected: { color: "#8a909c", text: (v) => `${v}: rejected` },
+  candidate: { color: "#8a909c", text: () => "Unverified" },
+  error: { color: "#d03b2f", text: () => "Failed" },
 };
 
 interface Props {
@@ -220,17 +220,17 @@ export default function WebcamTile({ showOverlay, onLiveIncident }: Props) {
   const recent = [...events].reverse().slice(0, 3);
 
   return (
-    <div className={`flex flex-col overflow-hidden rounded-xl border bg-[#0c0c12] ${down.length ? "tile-alert" : "border-white/10"}`}
-      style={down.length ? ({ "--pulse": "#ef4444" } as React.CSSProperties) : undefined}>
-      <div className="relative bg-black" style={{ aspectRatio: String(aspect) }}>
+    <div className={`flex flex-col overflow-hidden rounded-xl border bg-surface ${down.length ? "tile-alert" : "border-line"}`}
+      style={down.length ? ({ "--pulse": "#d03b2f" } as React.CSSProperties) : undefined}>
+      <div className="relative bg-footage" style={{ aspectRatio: String(aspect) }}>
         <video ref={videoRef} className={`h-full w-full object-fill ${active ? "" : "hidden"}`}
           style={mirrored ? { transform: "scaleX(-1)" } : undefined} muted playsInline />
         {!active && (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-xs text-slate-500">
-            <span className="text-sm text-slate-300">Webcam (live)</span>
-            <span>{status === "no-camera" ? "Camera permission denied or no camera found." : "Labels your webcam live and verifies flagged moments."}</span>
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+            <span className="text-[13px] font-medium text-white/85">Live webcam</span>
+            <span className="text-[12px] text-white/55">{status === "no-camera" ? "Camera permission was denied, or no camera was found." : "Run the same checks on your own camera, live."}</span>
             <button type="button" onClick={start}
-              className="mt-1 rounded-lg border border-white/20 px-3 py-1.5 text-[12px] text-slate-200 hover:border-white/40">
+              className="mt-1.5 rounded-md bg-white px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-white/90">
               Start webcam
             </button>
           </div>
@@ -241,35 +241,34 @@ export default function WebcamTile({ showOverlay, onLiveIncident }: Props) {
           </div>
         )}
         {active && (
-          <div className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 font-mono text-[11px] text-white">
-            WEBCAM · LIVE · {people} {people === 1 ? "person" : "people"}
-            {status === "live" ? ` · ${fps.toFixed(1)} fps · ${frame?.ms ?? 0} ms` : ""}
+          <div className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] tabular-nums text-white/90">
+            {people} {people === 1 ? "person" : "people"}
+            {status === "live" ? ` · ${fps.toFixed(1)} fps` : ""}
           </div>
         )}
         {active && (
-          <div className="absolute right-2 top-2 flex items-center gap-1.5 rounded bg-red-600/80 px-2 py-0.5 text-[11px] font-semibold text-white">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
+          <div className="absolute right-2 top-2 flex items-center gap-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a4e]" /> Live
           </div>
         )}
         {down.length > 0 && (
-          <div className="absolute left-2 top-2 rounded bg-[#ef4444cc] px-2 py-0.5 text-[11px] font-semibold text-white">
-            ● Possible person down · {down.map((id) => `#${id}`).join(", ")}
+          <div className="absolute left-2 top-2 rounded-md bg-[#d03b2f] px-2 py-1 text-[12px] font-medium text-white shadow-sm">
+            Possible person down · {down.map((id) => `#${id}`).join(", ")}
           </div>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-3 text-[11px]">
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1.5"
-            style={{ color: status === "live" ? "#22c55e" : status === "no-server" ? "#f59e0b" : "#94a3b8" }}>
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />
-            {status === "live" ? "Labeling live" : status === "no-server" ? "Live server not reachable" : status === "starting" ? "Starting…" : "Not started"}
-          </span>
-          <span className="flex items-center gap-3">
-            <button type="button" onClick={() => setMirrored((m) => !m)} className="text-slate-400 hover:text-slate-200">
+      <div className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2.5 text-[12px]">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[13px] font-medium text-ink">{health.camera?.zone ?? "Webcam"}</span>
+          <span className="flex items-center gap-3 text-ink-3">
+            <span className={status === "no-server" ? "text-[#b07a12]" : ""}>
+              {status === "live" ? "Labeling" : status === "no-server" ? "Server unreachable" : status === "starting" ? "Starting…" : "Off"}
+            </span>
+            <button type="button" onClick={() => setMirrored((m) => !m)} className="transition-colors hover:text-ink">
               {mirrored ? "Mirrored" : "Unmirrored"}
             </button>
             {active && (
-              <button type="button" onClick={stop} className="text-slate-400 hover:text-slate-200">Stop</button>
+              <button type="button" onClick={stop} className="font-medium text-ink-2 transition-colors hover:text-ink">Stop</button>
             )}
           </span>
         </div>
@@ -281,19 +280,19 @@ export default function WebcamTile({ showOverlay, onLiveIncident }: Props) {
               return (
                 <li key={e.id} className="flex items-center justify-between gap-2" title={e.explanation}>
                   {DONE.includes(e.status)
-                    ? <IncidentLink id={e.id} className="truncate text-slate-200 hover:underline">{label}</IncidentLink>
-                    : <span className="truncate text-slate-300">{label}</span>}
-                  <span className="flex-shrink-0 font-semibold" style={{ color: style.color }}>{style.text(verifier)}</span>
+                    ? <IncidentLink id={e.id} className="truncate text-ink-2 hover:text-ink hover:underline">{label}</IncidentLink>
+                    : <span className="truncate text-ink-2">{label}</span>}
+                  <span className="flex-shrink-0 font-medium" style={{ color: style.color }}>{style.text(verifier)}</span>
                 </li>
               );
             })}
           </ul>
         )}
-        <p className="text-slate-600">
+        <p className="leading-relaxed text-ink-3">
           {status === "no-server"
-            ? <>Start it with <code className="text-slate-400">npm run live</code> ({LIVE_URL}).</>
-            : <>Live checks (zone entry in the red strip, person down) send each
-              candidate clip to {verifier === "No verifier" ? "the ledger unverified" : verifier}.</>}
+            ? <>Start it with <code className="rounded bg-sunken px-1 font-mono text-ink-2">npm run live</code> ({LIVE_URL}).</>
+            : <>Flags restricted-zone entry and people down, then sends each clip
+              {verifier === "No verifier" || verifier === "Verifier" ? " for review" : ` to ${verifier}`}.</>}
         </p>
       </div>
     </div>

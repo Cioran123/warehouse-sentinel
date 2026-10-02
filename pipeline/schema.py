@@ -28,11 +28,13 @@ for _d in (VIDEOS_DIR, CLIPS_DIR, PIPELINE_DIR, DB_DIR):
 EventType = Literal[
     "restricted_zone_entry",
     "vehicle_pedestrian_proximity",
+    "ppe_missing_hard_hat",
     "person_down_or_inactivity",
 ]
 EVENT_TYPES: tuple[str, ...] = (
     "restricted_zone_entry",
     "vehicle_pedestrian_proximity",
+    "ppe_missing_hard_hat",
     "person_down_or_inactivity",
 )
 Priority = Literal["low", "medium", "high"]

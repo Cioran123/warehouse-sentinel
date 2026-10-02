@@ -1,7 +1,7 @@
 """Assemble clips into one recording per camera.
 
 Shots are read from footage/<CAMERA_ID>/*.mp4 in filename order (pipeline/vast_fetch.py
-writes them there from VAST). Every shot is normalized to 1280x720 @ 30 fps, concatenated, and the
+writes them there from VAST). Every shot is normalized to 1920x1080 @ 30 fps, concatenated, and the
 camera/zone/timecode overlay is burned in:
 
     WAREHOUSE SENTINEL | SITE A | WH_CAM_01 | AISLE A | 00:57

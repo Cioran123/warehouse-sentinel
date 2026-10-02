@@ -41,30 +41,30 @@ function Evidence({ incident, camera, venueName, live }: Pick<Props, "incident" 
 
   return (
     <>
-      <section className="rounded-xl border border-white/10 bg-[#0c0c12] p-4">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Verifier result</h2>
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <h2 className="mb-2 text-[13px] font-semibold text-ink">Verifier result</h2>
         <div className="mb-2 flex items-center gap-2">
           <VerificationBadge status={incident.verificationStatus} />
         </div>
-        <p className="text-sm text-slate-200">{incident.cosmosExplanation ?? "No explanation recorded."}</p>
-        <p className="mt-2 text-[11px] text-slate-500">
+        <p className="text-[13px] leading-relaxed text-ink">{incident.cosmosExplanation ?? "No explanation recorded."}</p>
+        <p className="mt-2 text-[11px] text-ink-3">
           {incident.verifier ?? "unverified"} · prompt {incident.promptVersion ?? "—"}
         </p>
-        <h3 className="mb-1 mt-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Observable evidence</h3>
+        <h3 className="mb-1 mt-4 text-[12px] font-medium text-ink-3">Observable evidence</h3>
         {hasVerifierEvidence ? (
-          <ul className="list-disc space-y-1 pl-4 text-[13px] text-slate-300">
+          <ul className="list-disc space-y-1 pl-4 text-[13px] text-ink-2">
             {incident.observations.map((o) => (
               <li key={o}>{o}</li>
             ))}
           </ul>
         ) : (
-          <p className="text-[12px] text-slate-500">No verifier evidence yet; see the candidate signals below.</p>
+          <p className="text-[12px] text-ink-3">No verifier evidence yet; see the candidate signals below.</p>
         )}
       </section>
 
-      <section className="rounded-xl border border-white/10 bg-[#0c0c12] p-4">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Candidate signals (YOLO)</h2>
-        <ul className="list-disc space-y-1 pl-4 text-[13px] text-slate-300">
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <h2 className="mb-2 text-[13px] font-semibold text-ink">Candidate signals (YOLO)</h2>
+        <ul className="list-disc space-y-1 pl-4 text-[13px] text-ink-2">
           {(incident.signalNotes ?? []).map((o) => (
             <li key={o}>{o}</li>
           ))}
@@ -73,8 +73,8 @@ function Evidence({ incident, camera, venueName, live }: Pick<Props, "incident" 
           <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px]">
             {Object.entries(incident.signals).map(([k, v]) => (
               <div key={k} className="contents">
-                <dt className="text-slate-500">{k}</dt>
-                <dd className="text-right text-slate-300">{v}</dd>
+                <dt className="text-ink-3">{k}</dt>
+                <dd className="text-right text-ink-2">{v}</dd>
               </div>
             ))}
           </dl>
@@ -82,22 +82,22 @@ function Evidence({ incident, camera, venueName, live }: Pick<Props, "incident" 
       </section>
 
       {incident.evidenceClipUrl && !live && (
-        <section className="rounded-xl border border-white/10 bg-[#0c0c12] p-4">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Clip sent to verifier</h2>
+        <section className="rounded-xl border border-line bg-surface p-4">
+          <h2 className="mb-2 text-[13px] font-semibold text-ink">Clip sent to verifier</h2>
           <video src={incident.evidenceClipUrl} controls muted preload="metadata" className="w-full rounded-lg" />
         </section>
       )}
 
-      <section className="rounded-xl border border-white/10 bg-[#0c0c12] p-4">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Source</h2>
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <h2 className="mb-2 text-[13px] font-semibold text-ink">Source</h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
-          <dt className="text-slate-500">Site</dt><dd className="text-slate-300">{venueName}</dd>
-          <dt className="text-slate-500">Camera</dt><dd className="text-slate-300">{camera.id} · {camera.zone}</dd>
-          <dt className="text-slate-500">File</dt><dd className="font-mono text-slate-300">{incident.videoId}</dd>
-          <dt className="text-slate-500">Span</dt><dd className="font-mono text-slate-300">{formatSpan(incident.startSec, incident.endSec)}</dd>
-          <dt className="text-slate-500">Source</dt><dd className="text-slate-300">{incident.sourceType}</dd>
-          <dt className="text-slate-500">Scenario</dt><dd className="text-slate-300">{camera.scenario}</dd>
-          <dt className="text-slate-500">Tracks</dt><dd className="font-mono text-slate-300">{incident.trackIds?.length ? incident.trackIds.map((t) => `#${t}`).join(", ") : "—"}</dd>
+          <dt className="text-ink-3">Site</dt><dd className="text-ink-2">{venueName}</dd>
+          <dt className="text-ink-3">Camera</dt><dd className="text-ink-2">{camera.id} · {camera.zone}</dd>
+          <dt className="text-ink-3">File</dt><dd className="font-mono text-ink-2">{incident.videoId}</dd>
+          <dt className="text-ink-3">Span</dt><dd className="font-mono text-ink-2">{formatSpan(incident.startSec, incident.endSec)}</dd>
+          <dt className="text-ink-3">Source</dt><dd className="text-ink-2">{incident.sourceType}</dd>
+          <dt className="text-ink-3">Scenario</dt><dd className="text-ink-2">{camera.scenario}</dd>
+          <dt className="text-ink-3">Tracks</dt><dd className="font-mono text-ink-2">{incident.trackIds?.length ? incident.trackIds.map((t) => `#${t}`).join(", ") : "—"}</dd>
         </dl>
       </section>
     </>
@@ -134,7 +134,7 @@ export default function IncidentViewer({
           id: "gt",
           startSec: camera.groundTruth.startSec,
           endSec: camera.groundTruth.endSec,
-          color: "#e2e8f0",
+          color: "#42485a",
           label: `Ground truth: ${EVENT_LABEL[camera.groundTruth.eventType]}`,
           row: 0 as const,
           outlined: true,
@@ -161,22 +161,24 @@ export default function IncidentViewer({
       ];
 
   const main = (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
         {variant === "page" && (
-          <Link href={`/overview?incident=${incident.id}`} className="text-xs text-slate-500 hover:text-slate-300">← Command center</Link>
+          <Link href={`/overview?incident=${incident.id}`} className="self-start text-[12px] text-ink-3 transition-colors hover:text-ink">← Back to Live</Link>
         )}
-        <h1 className="text-lg font-semibold text-white">{EVENT_LABEL[incident.eventType]}</h1>
-        <PriorityBadge priority={incident.priority} />
-        <VerificationBadge status={incident.verificationStatus} />
-        <SourceBadge sourceType={incident.sourceType} />
+        <h1 className="text-[20px] font-semibold tracking-tight text-ink">{EVENT_LABEL[incident.eventType]}</h1>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <PriorityBadge priority={incident.priority} />
+          <VerificationBadge status={incident.verificationStatus} />
+          <span className="text-[12px] text-ink-2">
+            {camera.zone} <span className="font-mono text-ink-3">{camera.id} · {formatSpan(incident.startSec, incident.endSec)}</span>
+          </span>
+          <SourceBadge sourceType={incident.sourceType} />
+        </div>
       </div>
-      <p className="font-mono text-xs text-slate-400">
-        {camera.id} · {camera.zone} · {formatSpan(incident.startSec, incident.endSec)}
-      </p>
 
       {incident.requiresHumanReview && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
+        <div className="rounded-lg border border-medium-line bg-medium-soft px-4 py-2.5 text-[13px] leading-relaxed text-medium">
           Human review recommended. This is an observable-signal match, not a determination of blame,
           identity, or medical condition.
         </div>
@@ -197,12 +199,12 @@ export default function IncidentViewer({
             key={label}
             type="button"
             onClick={() => playerRef.current?.seekTo(Math.max(0, t))}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] text-slate-300 hover:border-white/30"
+            className="rounded-md border border-line bg-surface px-2.5 py-1 text-[12px] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
           >
-            {label} ({formatTime(Math.max(0, t))})
+            {label} <span className="font-mono text-ink-3">{formatTime(Math.max(0, t))}</span>
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-400">
+        <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[12px] text-ink-2">
           <input type="checkbox" checked={showOverlay} onChange={(e) => setShowOverlay(e.target.checked)} />
           {live
             ? "Restricted polygon (live clip, no saved tracks)"
@@ -225,7 +227,7 @@ export default function IncidentViewer({
 
   const side = (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex gap-1 rounded-lg bg-white/[0.04] p-1" role="tablist">
+      <div className="flex gap-1 rounded-lg bg-sunken p-1" role="tablist">
         {([
           ["evidence", "Evidence"],
           ["ask", "Ask about this clip"],
@@ -237,7 +239,7 @@ export default function IncidentViewer({
             aria-selected={tab === id}
             onClick={() => setTab(id)}
             className={`flex-1 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors ${
-              tab === id ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-200"
+              tab === id ? "bg-surface text-ink shadow-sm shadow-ink/5" : "text-ink-3 hover:text-ink"
             }`}
           >
             {label}

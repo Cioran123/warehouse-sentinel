@@ -12,10 +12,10 @@ async function statusChips(): Promise<{ venueName: string; chips: StatusChip[] }
     return {
       venueName: venue.venueName.replace(/\s*\(.*\)$/, ""),
       chips: [
-        { label: "Cameras indexed", value: `${indexed}/${statuses.length}`, color: indexed ? "#22c55e" : "#94a3b8" },
-        { label: "Verified", value: String(kept), color: kept ? "#22c55e" : "#94a3b8" },
-        { label: "Verifier", value: verifier, color: verifier === "none" ? "#94a3b8" : "#60a5fa" },
-        { label: "Index", value: process.env.INDEX_BACKEND === "vast" ? "VAST" : "local", color: "#c084fc" },
+        { label: "Cameras", value: `${indexed}/${statuses.length} indexed` },
+        { label: "Verified", value: String(kept) },
+        { label: "Verifier", value: verifier === "none" ? "Off" : verifier[0].toUpperCase() + verifier.slice(1) },
+        { label: "Index", value: process.env.INDEX_BACKEND === "vast" ? "VAST" : "Local" },
       ],
     };
   } catch {
@@ -30,7 +30,7 @@ export default async function TabsLayout({
 }>) {
   const { venueName, chips } = await statusChips();
   return (
-    <div className="flex h-screen flex-col bg-[#09090f]">
+    <div className="flex h-screen flex-col bg-canvas">
       <TabShell venueName={venueName} chips={chips} />
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</main>
       <ToastContainer />

@@ -6,5 +6,5 @@ export default async function VenuePage({
   searchParams: Promise<{ zone?: string }>;
 }) {
   const zone = (await searchParams).zone?.trim();
-  redirect(zone ? `/overview?zone=${encodeURIComponent(zone)}` : "/overview");
+  redirect(zone ? `/site-map?zone=${encodeURIComponent(zone)}` : "/site-map");
 }

@@ -41,11 +41,11 @@ export default function EventTimeline({ bands, currentTime, duration, onSeek, on
 
   return (
     <div>
-      <div className="flex items-center justify-between px-1 pb-1 font-mono text-[10px] text-slate-500">
+      <div className="flex items-center justify-between px-1 pb-1 font-mono text-[10px] text-ink-3">
         <span>{formatTime(currentTime)}</span>
         <span>{formatTime(duration)}</span>
       </div>
-      <div className="relative h-[46px] w-full overflow-hidden rounded-lg border border-white/10 bg-[#0c0c12]">
+      <div className="relative h-[46px] w-full overflow-hidden rounded-lg border border-line bg-sunken">
         <svg
           ref={svgRef}
           width="100%"
@@ -89,25 +89,25 @@ export default function EventTimeline({ bands, currentTime, duration, onSeek, on
             x2={`${playheadPct}%`}
             y1={0}
             y2={46}
-            stroke="#ffffff"
+            stroke="#2b3140"
             strokeWidth={2}
             pointerEvents="none"
           />
         </svg>
       </div>
-      <div className="mt-2 flex flex-wrap gap-4 text-[10px] uppercase tracking-wider text-slate-400">
+      <div className="mt-2 flex flex-wrap gap-4 text-[12px] text-ink-3">
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-4 rounded-sm border border-dashed border-slate-300" />
-          Scripted scenario window (ground truth)
+          <span className="h-2.5 w-4 rounded-sm border border-dashed border-ink-2" />
+          Scripted scenario (ground truth)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-4 rounded-sm bg-emerald-500" /> kept
+          <span className="h-2.5 w-4 rounded-sm bg-[#2b3140]" /> Verified
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-4 rounded-sm bg-slate-400" /> candidate
+          <span className="h-2.5 w-4 rounded-sm bg-[#8a909c]" /> Unverified
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-4 rounded-sm bg-slate-600" /> rejected
+          <span className="h-2.5 w-4 rounded-sm bg-[#c4c8cf]" /> Rejected
         </span>
       </div>
     </div>

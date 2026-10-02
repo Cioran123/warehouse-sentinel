@@ -56,6 +56,7 @@ import numpy as np
 from shapely.geometry import Point, Polygon
 
 import pose
+import ppe
 import rtmo
 import tracking
 from schema import VIDEOS_DIR, load_config, tracks_path, weights
@@ -78,6 +79,18 @@ LYING_TRACKED_IOU = 0.5
 DEFAULT_TRACKER = os.environ.get("SENTINEL_TRACKER", "bytetrack.yaml")
 VEHICLE_CLASSES = [c.strip() for c in os.environ.get(
     "SENTINEL_VEHICLE_CLASSES", "forklift,truck,car,bus,motorcycle").split(",") if c.strip()]
+# Open-vocabulary vehicle pass (YOLO-World). COCO weights miss warehouse vehicles entirely, and
+# YOLO-World's forklift score collapses to ~0.06 while one turns, hence the low floor, a tracker
+# that tolerates misses, and interpolation across short gaps. Set to "" to use the COCO classes above.
+VEHICLE_MODEL = os.environ.get("SENTINEL_VEHICLE_MODEL", "yolov8m-worldv2.pt")
+VEHICLE_PROMPTS = [c.strip() for c in os.environ.get(
+    "SENTINEL_VEHICLE_PROMPTS", "order picker forklift,forklift,pallet jack").split(",") if c.strip()]
+VEHICLE_CONF = float(os.environ.get("SENTINEL_VEHICLE_CONF", "0.05"))
+VEHICLE_MATCH_IOU = 0.2
+VEHICLE_MAX_GAP_SEC = 1.6
+PPE_ON = os.environ.get("SENTINEL_PPE", "1") != "0"
+# A track is a robot, not a person, when most of its judged frames say so.
+ROBOT_MIN_SHARE = 0.5
 # Overhead aisle cameras see small, partly occluded people, so a medium model, higher input
 # resolution, and a low confidence floor let the tracker see tentative detections; temporal
 # persistence and ROI rules filter them later.
@@ -221,6 +234,97 @@ def _iou(a: list[float], b: list[float]) -> float:
     return inter / union if union > 0 else 0.0
 
 
+def load_vehicle_model():
+    """YOLO-World set to VEHICLE_PROMPTS, or None when disabled or the weights are missing."""
+    if not VEHICLE_MODEL or not os.path.exists(weights(VEHICLE_MODEL)):
+        return None
+    from ultralytics import YOLO
+
+    try:
+        model = YOLO(weights(VEHICLE_MODEL))
+        model.set_classes(VEHICLE_PROMPTS)
+    except Exception as err:
+        print(f"[detect] could not load vehicle model {VEHICLE_MODEL} ({err}); using COCO vehicle classes")
+        return None
+    return model
+
+
+class VehicleTracker:
+    """Greedy IoU tracker; a track survives misses for VEHICLE_MAX_GAP_SEC so a vehicle the
+    detector loses mid-turn keeps its ID when it reappears."""
+
+    def __init__(self):
+        self.tracks: dict[int, tuple[float, list[float]]] = {}  # id -> (last seen t, box)
+        self.next_id = 1
+
+    def update(self, t: float, dets: list[tuple[list[float], float, str]]) -> list[dict]:
+        live = {i: tb for i, tb in self.tracks.items() if t - tb[0] <= VEHICLE_MAX_GAP_SEC}
+        pairs = sorted(((_iou(box, tb[1]), di, tid) for di, (box, _, _) in enumerate(dets)
+                        for tid, tb in live.items()), reverse=True)
+        assigned: dict[int, int] = {}
+        used: set[int] = set()
+        for iou, di, tid in pairs:
+            if iou < VEHICLE_MATCH_IOU or di in assigned or tid in used:
+                continue
+            assigned[di] = tid
+            used.add(tid)
+        out = []
+        for di, (box, s, cls) in enumerate(dets):
+            tid = assigned.get(di)
+            if tid is None:
+                tid, self.next_id = self.next_id, self.next_id + 1
+            self.tracks[tid] = (t, box)
+            out.append({"id": tid, "box": [round(v, 4) for v in box],
+                        "c": [round((box[0] + box[2]) / 2, 4), round((box[1] + box[3]) / 2, 4)],
+                        "cls": cls, "conf": round(s, 3)})
+        return out
+
+
+def detect_vehicles(model, frame: np.ndarray, roi_poly: Polygon, imgsz: int, dev: str | None) -> list[tuple[list[float], float, str]]:
+    h, w = frame.shape[:2]
+    r = model.predict(frame, imgsz=imgsz, conf=VEHICLE_CONF, iou=IOU, agnostic_nms=True,
+                      device=dev, verbose=False)[0]
+    out = []
+    for (x1, y1, x2, y2), s, k in zip(r.boxes.xyxy.tolist(), r.boxes.conf.tolist(), r.boxes.cls.tolist()):
+        nb = [x1 / w, y1 / h, x2 / w, y2 / h]
+        if roi_poly.contains(Point((nb[0] + nb[2]) / 2, nb[3])):
+            out.append((nb, float(s), model.names[int(k)]))
+    return out
+
+
+def split_robots(frames: list[dict]) -> set[int]:
+    """Moves tracks the head classifier mostly calls robots from `boxes` to `robots`, so the
+    person checks never see a humanoid robot."""
+    votes: dict[int, list[str]] = {}
+    for f in frames:
+        for b in f["boxes"]:
+            if "ppe" in b:
+                votes.setdefault(b["id"], []).append(b["ppe"])
+    robots = {tid for tid, v in votes.items() if len(v) >= 3 and v.count("robot") / len(v) >= ROBOT_MIN_SHARE}
+    for f in frames:
+        f["robots"] = [{"id": b["id"], "box": b["box"]} for b in f["boxes"] if b["id"] in robots]
+        f["boxes"] = [b for b in f["boxes"] if b["id"] not in robots]
+    return robots
+
+
+def fill_vehicle_gaps(frames: list[dict]) -> None:
+    """Linearly interpolate each vehicle track across frames where the detector missed it."""
+    seen: dict[int, list[tuple[int, dict]]] = {}
+    for fi, f in enumerate(frames):
+        for v in f.get("vehicles", []):
+            seen.setdefault(v["id"], []).append((fi, v))
+    for samples in seen.values():
+        for (fa, a), (fb, b) in zip(samples, samples[1:]):
+            ta, tb = frames[fa]["t"], frames[fb]["t"]
+            for fi in range(fa + 1, fb):
+                k = (frames[fi]["t"] - ta) / (tb - ta)
+                box = [round(p + (q - p) * k, 4) for p, q in zip(a["box"], b["box"])]
+                frames[fi]["vehicles"].append({
+                    "id": a["id"], "box": box,
+                    "c": [round((box[0] + box[2]) / 2, 4), round((box[1] + box[3]) / 2, 4)],
+                    "cls": a["cls"], "conf": 0.0, "interpolated": True})
+
+
 @op
 def detect_camera(cam: dict, model_name: str = DEFAULT_MODEL, tracker: str = DEFAULT_TRACKER,
                   conf: float | None = None, imgsz: int = IMGSZ, write: bool = True) -> dict:
@@ -244,10 +348,14 @@ def detect_camera(cam: dict, model_name: str = DEFAULT_MODEL, tracker: str = DEF
     vehicle_ids: dict[int, str] = {}
     person_id = 0
     bt_vehicle = None
+    vehicle_model = load_vehicle_model() if standalone else None
+    vehicle_tracker = VehicleTracker()
+    heads = ppe.HeadClassifier(dev) if PPE_ON and not use_rtmo else None
     if standalone:
         bt = tracking.bytetrack(tracker)
         person_id = next((int(i) for i, n in model.names.items() if n == "person"), 0)
-        vehicle_ids = {int(i): n for i, n in model.names.items() if n in VEHICLE_CLASSES}
+        if vehicle_model is None:
+            vehicle_ids = {int(i): n for i, n in model.names.items() if n in VEHICLE_CLASSES}
         bt_vehicle = tracking.bytetrack(tracker) if vehicle_ids else None
     if conf is None:
         conf = RTMO_CONF if use_rtmo else CONF
@@ -298,6 +406,9 @@ def detect_camera(cam: dict, model_name: str = DEFAULT_MODEL, tracker: str = DEF
                     vxyxy, vsc, vcls = xyxy[veh], sc[veh], cls[veh]
                     vehicles = vehicle_boxes(tracking.update(bt_vehicle, vxyxy, vsc, frame), vcls, vehicle_ids,
                                              roi_poly, width, height)
+                elif vehicle_model is not None:
+                    vehicles = vehicle_tracker.update(idx / native_fps,
+                                                      detect_vehicles(vehicle_model, frame, roi_poly, imgsz, dev))
             else:
                 result = model.track(frame, persist=True, tracker=tracker, classes=[0], imgsz=imgsz,
                                      conf=conf, iou=IOU, max_det=500, device=dev, verbose=False)[0]
@@ -328,6 +439,8 @@ def detect_camera(cam: dict, model_name: str = DEFAULT_MODEL, tracker: str = DEF
                 # YOLO-pose fills tracks RTMO left without a skeleton (it matches small, distant people better)
                 if any("kp" not in b for b in boxes):
                     attach_keypoints(boxes, *frame_keypoints(frame, POSE_IMGSZ, POSE_CONF, dev), width, height)
+            if heads is not None:
+                heads.classify(frame, boxes)
             gray = cv2.cvtColor(cv2.resize(frame, (FLOW_WIDTH, flow_h)), cv2.COLOR_BGR2GRAY)
             flow = flow_stats(prev_gray, gray, mask, dt) if prev_gray is not None else None
             prev_gray = gray
@@ -338,6 +451,9 @@ def detect_camera(cam: dict, model_name: str = DEFAULT_MODEL, tracker: str = DEF
             frames.append(row)
         idx += 1
     cap.release()
+    if vehicle_model is not None:
+        fill_vehicle_gaps(frames)
+    robots = split_robots(frames)
     # Trackers keep state on the predictor; reset so the next camera starts fresh.
     if not use_rtmo and not standalone and getattr(model, "predictor", None) is not None:
         model.predictor = None
@@ -353,7 +469,9 @@ def detect_camera(cam: dict, model_name: str = DEFAULT_MODEL, tracker: str = DEF
         "imgsz": 640 if use_rtmo else imgsz,
         "conf": conf,
         "lyingConf": LYING_CONF if standalone else None,
-        "vehicleClasses": sorted(vehicle_ids.values()),
+        "vehicleClasses": VEHICLE_PROMPTS if vehicle_model is not None else sorted(vehicle_ids.values()),
+        "vehicleModel": VEHICLE_MODEL if vehicle_model is not None else None,
+        "ppe": "clip+color" if heads is not None else None,
         "poseModel": model_used if use_rtmo else pose_used if with_pose else None,
         "poseImgsz": 640 if (use_rtmo or pose_rtmo) else POSE_IMGSZ if with_pose else None,
         "poseConf": RTMO_CONF if (use_rtmo or pose_rtmo) else POSE_CONF if with_pose else None,
@@ -362,12 +480,13 @@ def detect_camera(cam: dict, model_name: str = DEFAULT_MODEL, tracker: str = DEF
     }
     n_tracks = len({b["id"] for f in frames for b in f["boxes"]})
     n_vehicles = len({v["id"] for f in frames for v in f.get("vehicles", [])})
+    n_robots = len(robots)
     if write:
         tracks_path(cam["id"]).write_text(json.dumps(data))
         n_kp = sum(1 for f in frames for b in f["boxes"] if "kp" in b)
         n_boxes = sum(len(f["boxes"]) for f in frames)
         pose_note = f"pose ({data['poseModel']}) on {n_kp}/{n_boxes} boxes" if data["poseModel"] else "pose off"
-        print(f"[detect] {cam['id']}: {len(frames)} frames, {n_tracks} person / {n_vehicles} vehicle tracks ({model_used}, {tracker}, "
+        print(f"[detect] {cam['id']}: {len(frames)} frames, {n_tracks} person / {n_vehicles} vehicle / {n_robots} robot tracks ({model_used}, {tracker}, "
               f"imgsz {data['imgsz']}, conf {conf}, device {dev or 'cpu'}), {pose_note}")
     return data
 

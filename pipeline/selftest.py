@@ -106,19 +106,30 @@ def forklift_pass(t, gt=(50, 70), y=0.6):
         x = 0.1 + 0.8 * (t - gt[0]) / (gt[1] - gt[0])
     else:
         x = 0.1 if t < gt[0] else 0.9
-    yield 1, (x, y, 0.12, 0.1)
+    yield 1, (x, y, 0.2, 0.36)
 
 
 def forklift_parked(t):
     # stationary right next to the picker: loading, not a near miss
-    yield 1, (0.56, 0.6, 0.12, 0.1)
+    yield 1, (0.56, 0.6, 0.2, 0.36)
 
 
-def run(name, cam, scene, expect, gt, lying=None, vehicles=None):
+def with_ppe(data, bare_ids, robot_ids=()):
+    """Head labels as detect.py's classifier writes them: hats on everyone except `bare_ids`."""
+    for f in data["frames"]:
+        for b in f["boxes"]:
+            b["ppe"] = "robot" if b["id"] in robot_ids else "none" if b["id"] in bare_ids else "hat"
+    return data
+
+
+def run(name, cam, scene, expect, gt, lying=None, vehicles=None, bare=None):
     data = frames_from(scene, lying, vehicles)
+    if bare is not None:
+        data = with_ppe(data, bare)
     th = dict(C.DEFAULTS)
     cands = C.merge(
         C.check_restricted_zone(cam, data, th) + C.check_near_miss(cam, data, th)
+        + C.check_missing_hard_hat(cam, data, th)
         + C.check_inactivity(cam, data, th) + C.check_lying(cam, data, th),
         th["merge_gap_sec"],
     )
@@ -136,8 +147,12 @@ def run(name, cam, scene, expect, gt, lying=None, vehicles=None):
 def main():
     zone_cam = {"id": "TEST", "restrictedPolygons": [[[0, 0], [1, 0], [1, 0.42], [0, 0.42]]]}
     plain = {"id": "TEST"}
+    hat_cam = {"id": "TEST", "ppeRequired": True}
     results = [
         run("calm control", zone_cam, scene_calm, None, None),
+        run("missing hard hat", hat_cam, scene_worker, "ppe_missing_hard_hat", (0, DUR), bare={60}),
+        run("everyone in hard hats (control)", hat_cam, scene_worker, None, None, bare=set()),
+        run("bare head outside a hard-hat area (control)", plain, scene_worker, None, None, bare={60}),
         run("forklift near miss", plain, scene_worker, "vehicle_pedestrian_proximity", (50, 70), vehicles=forklift_pass),
         run("parked forklift (control)", plain, scene_worker, None, None, vehicles=forklift_parked),
         run("forklift in far aisle (control)", plain, scene_worker, None, None,

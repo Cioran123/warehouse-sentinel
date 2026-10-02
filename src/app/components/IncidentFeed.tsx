@@ -13,44 +13,48 @@ function Since({ at }: { at: number }) {
     return () => clearInterval(id);
   }, []);
   const mins = Math.max(0, Math.floor((now - at) / 60_000));
-  return <span className="font-mono text-[10px] text-slate-500">waiting {mins}m</span>;
+  return <span className="tabular-nums text-ink-3">{mins < 1 ? "just now" : `${mins}m ago`}</span>;
 }
 
 function FeedCard({ item }: { item: FeedItem }) {
   const { openIncident, dismissFeed, openIncidentId } = useCommand();
   const i = item.incident;
-  const color = PRIORITY_COLOR[i.priority];
   const open = openIncidentId === i.id;
   return (
     <div
-      className={`feed-pop flex w-64 flex-shrink-0 flex-col gap-1.5 rounded-xl p-2.5 ${open ? "ring-2 ring-sky-400/50" : ""}`}
-      style={{ background: `${color}0d`, border: `1px solid ${color}55`, borderLeft: `3px solid ${color}` }}
+      className={`feed-pop group flex w-72 flex-shrink-0 flex-col gap-2 rounded-xl border bg-surface p-3 transition-colors ${
+        open ? "border-accent" : "border-line hover:border-line-strong"
+      }`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-[12px] font-semibold text-white">{EVENT_LABEL[i.eventType]}</span>
-        <span className="rounded bg-black/40 px-1.5 py-0.5 font-mono text-[10px] text-slate-200">{i.cameraId}</span>
-      </div>
-      <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-slate-400">
-        <span className="truncate">{i.zone} · {formatSpan(i.startSec, i.endSec)}</span>
-        <Since at={item.seenAt} />
-      </div>
-      <div className="flex items-center justify-between gap-2">
+      <button type="button" onClick={() => openIncident(i.id)} className="flex flex-col gap-1 text-left">
+        <span className="flex items-center gap-2">
+          <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: PRIORITY_COLOR[i.priority] }} />
+          <span className="truncate text-[13px] font-medium text-ink">{EVENT_LABEL[i.eventType]}</span>
+        </span>
+        <span className="flex items-center justify-between gap-2 pl-4 text-[12px]">
+          <span className="truncate text-ink-2">
+            {i.zone} <span className="font-mono text-ink-3">{formatSpan(i.startSec, i.endSec)}</span>
+          </span>
+          <Since at={item.seenAt} />
+        </span>
+      </button>
+      <div className="flex items-center justify-between gap-2 pl-4">
         <VerificationBadge status={i.verificationStatus} />
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={() => openIncident(i.id)}
-            className="rounded-md border border-slate-600 px-2 py-1 text-[10px] text-slate-200 transition-colors hover:border-slate-400 hover:text-white"
-          >
-            Review
-          </button>
+        <div className="flex gap-1">
           <button
             type="button"
             onClick={() => dismissFeed(i.id)}
             title="Mark reviewed"
-            className="rounded-md border border-slate-700 px-2 py-1 text-[10px] text-slate-400 transition-colors hover:border-slate-500 hover:text-white"
+            className="rounded-md px-2 py-1 text-[12px] text-ink-3 transition-colors hover:bg-hover hover:text-ink"
           >
-            Done
+            Dismiss
+          </button>
+          <button
+            type="button"
+            onClick={() => openIncident(i.id)}
+            className="rounded-md bg-ink px-2.5 py-1 text-[12px] font-medium text-surface transition-colors hover:bg-ink-2"
+          >
+            Review
           </button>
         </div>
       </div>
@@ -68,25 +72,23 @@ export default function IncidentFeed() {
   const high = feed.filter((f) => f.incident.priority === "high").length;
 
   return (
-    <section className="flex min-w-0 flex-col gap-2 border-t border-white/[0.08] bg-[#07070e] px-4 py-3" aria-label="Incident feed">
-      <div className="flex items-center gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Alerts</h2>
-        <span className="text-[11px] text-slate-500">{feed.length} waiting for review</span>
-        {high > 0 && (
-          <span className="banner-pulse rounded-full border border-red-900 bg-[#3d0c0c] px-2.5 py-0.5 text-[11px] text-[#fca5a5]">
-            ⚠ {high} high priority
-          </span>
-        )}
-        <button type="button" onClick={resetFeed} className="ml-auto text-[11px] text-slate-500 hover:text-slate-300">
+    <section className="flex min-w-0 flex-col gap-3 border-t border-line bg-sunken px-6 py-4" aria-label="Incident feed">
+      <div className="flex items-baseline gap-3">
+        <h2 className="text-[15px] font-semibold tracking-tight text-ink">Alerts</h2>
+        <span className="text-[12px] text-ink-3">
+          {feed.length === 0 ? "Nothing waiting" : `${feed.length} waiting for review`}
+          {high > 0 && <span className="font-medium text-high"> · {high} high priority</span>}
+        </span>
+        <button type="button" onClick={resetFeed} className="ml-auto text-[12px] text-ink-3 transition-colors hover:text-ink">
           Replay
         </button>
       </div>
       {items.length === 0 ? (
-        <p className="py-3 text-[12px] text-slate-600">
-          No alerts yet. Candidates appear here as each camera&apos;s playback reaches them.
+        <p className="text-[12px] text-ink-3">
+          Incidents appear here as each camera&apos;s playback reaches them.
         </p>
       ) : (
-        <div className="flex gap-2.5 overflow-x-auto pb-1">
+        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
           {items.map((item) => (
             <FeedCard key={item.incident.id} item={item} />
           ))}

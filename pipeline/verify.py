@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 
 import cv2
 
-from media import cut_clip, mmss, sample_frames
-from schema import CLIPS_DIR, Candidate, load_env
+from media import cut_annotated_clip, cut_clip, mmss, sample_frames
+from schema import CLIPS_DIR, Candidate, load_env, tracks_path
 from tracing import op
 
 DEFAULT_COSMOS_URL = "https://integrate.api.nvidia.com/v1"
@@ -31,6 +31,7 @@ DEFAULT_COSMOS_URL = "https://integrate.api.nvidia.com/v1"
 LABELS = {
     "restricted_zone_entry": "a person entering a restricted area (forklift-only lane, hazard zone, or marked keep-out area)",
     "vehicle_pedestrian_proximity": "a possible near miss between a moving forklift or other vehicle and a pedestrian",
+    "ppe_missing_hard_hat": "a person in a hard-hat area without a hard hat (bare head or a soft cap)",
     "person_down_or_inactivity": "a person down, low to the ground, or motionless for an extended period",
 }
 
@@ -75,6 +76,8 @@ Rules:
 - A near miss needs a vehicle in motion passing or approaching within roughly an arm's length of a person,
   or a person stepping into the vehicle's path.
 - A person-down candidate needs a person visibly low or on the ground for several seconds.
+- A missing-hard-hat candidate needs the highlighted person's head clearly visible without a hard shell;
+  robots, distant or occluded heads are "unclear".
 - Use "unclear" whenever you are not confident.
 
 Return ONLY a JSON object, no markdown:
@@ -235,7 +238,13 @@ def clip_for(incident_id: str):
 def verify_candidate(c: Candidate, cam: dict, video_path: str, incident_id: str, backend: str) -> Verdict:
     from pathlib import Path
 
-    clip = cut_clip(Path(video_path), c.start_sec, c.end_sec, clip_for(incident_id))
+    src, out = Path(video_path), clip_for(incident_id)
+    track_file = tracks_path(cam["id"])
+    if track_file.exists():
+        clip = cut_annotated_clip(src, c.start_sec, c.end_sec, out, json.loads(track_file.read_text()),
+                                  c.track_ids, cam.get("restrictedPolygons", []))
+    else:
+        clip = cut_clip(src, c.start_sec, c.end_sec, out)
     return verify_clip(c, cam, clip, incident_id, backend)
 
 

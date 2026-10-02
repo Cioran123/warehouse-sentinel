@@ -33,7 +33,9 @@ def main() -> None:
         if not gt:
             continue
         window = (gt["startSec"], gt["endSec"])
-        scene = SCENES[gt["eventType"]]
+        scene = SCENES.get(gt["eventType"])
+        if scene is None:
+            continue
         if gt["eventType"] == "restricted_zone_entry" and cam.get("restrictedPolygons"):
             poly = Polygon(cam["restrictedPolygons"][0])
             ix, iy = poly.centroid.x, poly.centroid.y

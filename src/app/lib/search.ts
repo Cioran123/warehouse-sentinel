@@ -47,6 +47,7 @@ export const DEFAULT_STATUSES: VerificationStatus[] = ["kept", "candidate"];
 const EVENT_KEYWORDS: Record<EventType, RegExp> = {
   restricted_zone_entry: /\b(restricted|keep[- ]out|no[- ]go|forklift[- ]only|forklift lanes?|hazard (zone|area)s?|trespass\w*|unauthori[sz]ed|breach\w*|zone entr\w*|entries|intru\w*)\b/,
   vehicle_pedestrian_proximity: /\b(near[- ]miss\w*|close calls?|forklift(?![- ](only|lanes?))s?|pallet jacks?|vehicles?|trucks?|collisions?|struck|hit by|proximity|too close)\b/,
+  ppe_missing_hard_hat: /\b(hard ?hats?|helmets?|ppe|head protection|safety gear|protective gear|no hat|without (a )?hat)\b/,
   person_down_or_inactivity: /\b(down|fall\w*|fell|fallen|slip\w*|trip\w*|inactiv\w*|motionless|collaps\w*|unresponsive|lying|still)\b/,
 };
 

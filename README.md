@@ -37,7 +37,7 @@ VAST segments bucket ──vast_fetch.py──▶ footage/WH_CAM_0x/*.mp4
 
 | Event type | Candidate check (does not decide an incident occurred) |
 |---|---|
-| `vehicle_pedestrian_proximity` | a tracked person's foot point within 0.5 body-heights of a vehicle box for 0.4s+ while that vehicle is moving; parked vehicles are ignored |
+| `vehicle_pedestrian_proximity` | a tracked person's foot point within 0.5 body-heights of a vehicle box for 0.4s+ while that vehicle is moving; parked vehicles, and vehicles under 1.8x the person's height (pallet jacks and carts being pushed), are ignored |
 | `restricted_zone_entry` | a person's foot point moves from outside to inside a restricted polygon (forklift-only lane, keep-out area) |
 | `person_down_or_inactivity` | a track is low and nearly still for 6s+, or a lying-shaped detection stays at one spot for 2s+; pose adds torso tilt |
 
@@ -45,11 +45,15 @@ Thresholds live in `pipeline/candidates.py` (`DEFAULTS`) and can be overridden p
 `thresholds` object in `pipeline/config/cameras.json`. `python pipeline/selftest.py` checks all
 three against synthetic tracks, including parked-forklift and far-aisle controls.
 
-**Vehicles.** Stock COCO weights have no forklift class; a forklift usually comes back as `truck`
-or `car`. Vehicles are matched by class name against `SENTINEL_VEHICLE_CLASSES` (default
-`forklift,truck,car,bus,motorcycle`), so a fine-tuned model with a `forklift` class works by
-pointing `SENTINEL_YOLO_MODEL` at it. Vehicle tracks are only recorded with ByteTrack (the
-default tracker).
+**Vehicles.** Stock COCO weights have no forklift class and miss the SDG forklifts entirely, so
+vehicles come from a separate open-vocabulary pass: YOLO-World (`SENTINEL_VEHICLE_MODEL`, default
+`yolov8m-worldv2.pt`) prompted with `SENTINEL_VEHICLE_PROMPTS` (default
+`order picker forklift,forklift,pallet jack`) down to `SENTINEL_VEHICLE_CONF` (0.05). Its score
+drops sharply while a forklift turns, so vehicle tracks survive misses of up to 1.6s and are
+linearly interpolated across them (`"interpolated": true`). Without those weights, or with
+`SENTINEL_VEHICLE_MODEL=""`, vehicles fall back to COCO classes in `SENTINEL_VEHICLE_CLASSES`
+(default `forklift,truck,car,bus,motorcycle`). Vehicle tracks are only recorded with ByteTrack
+(the default tracker).
 
 ---
 
@@ -106,4 +110,3 @@ One command-center screen:
 - **Alerts**: incidents appear as playback reaches them.
 - **Incident drawer**: player, timeline, verifier evidence, and "Ask about this clip", which
   answers from keyframes plus the record and turns cited timestamps into seek buttons.
-- **Review Reel**: concatenates verifier-kept spans with lower thirds.

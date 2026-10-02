@@ -1,40 +1,36 @@
-import {
-  PRIORITY_COLOR,
-  STATUS_COLOR,
-  type Priority,
-  type SourceType,
-  type VerificationStatus,
-} from "@/app/lib/types";
+import { PRIORITY_COLOR, type Priority, type SourceType, type VerificationStatus } from "@/app/lib/types";
 
-function Pill({ color, children }: { color: string; children: React.ReactNode }) {
+const PRIORITY_LABEL: Record<Priority, string> = { high: "High priority", medium: "Medium priority", low: "Low priority" };
+
+export function PriorityBadge({ priority }: { priority: Priority }) {
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-      style={{ color, borderColor: `${color}55`, background: `${color}1a` }}
-    >
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
-      {children}
+    <span className="inline-flex items-center gap-1.5 text-[12px] font-medium" style={{ color: PRIORITY_COLOR[priority] }}>
+      <span className="h-2 w-2 rounded-full" style={{ background: PRIORITY_COLOR[priority] }} />
+      {PRIORITY_LABEL[priority]}
     </span>
   );
 }
 
-export function PriorityBadge({ priority }: { priority: Priority }) {
-  return <Pill color={PRIORITY_COLOR[priority]}>{priority} priority</Pill>;
-}
-
-const STATUS_LABEL: Record<VerificationStatus, string> = {
-  candidate: "Unverified candidate",
-  kept: "Verified: kept",
-  rejected: "Verified: rejected",
+const STATUS: Record<VerificationStatus, { label: string; className: string; mark: string }> = {
+  kept: { label: "Verified", className: "text-ink font-medium", mark: "bg-ink" },
+  candidate: { label: "Unverified", className: "text-ink-2", mark: "border-[1.5px] border-ink-3" },
+  rejected: { label: "Rejected", className: "text-ink-3 line-through decoration-ink-3/50", mark: "bg-line-strong" },
 };
 
 export function VerificationBadge({ status }: { status: VerificationStatus }) {
-  return <Pill color={STATUS_COLOR[status]}>{STATUS_LABEL[status]}</Pill>;
+  const s = STATUS[status];
+  return (
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] ${s.className}`}>
+      <span className={`h-2 w-2 flex-shrink-0 rounded-full ${s.mark}`} />
+      {s.label}
+    </span>
+  );
 }
 
 export function SourceBadge({ sourceType }: { sourceType: SourceType }) {
-  if (sourceType !== "synthetic_sdg") {
-    return <Pill color="#60a5fa">{sourceType.replace("_", " ")}</Pill>;
-  }
-  return <Pill color="#c084fc">Synthetic (VAST SDG)</Pill>;
+  return (
+    <span className="text-[12px] text-ink-3">
+      {sourceType === "synthetic_sdg" ? "Synthetic footage (VAST SDG)" : sourceType.replace("_", " ")}
+    </span>
+  );
 }

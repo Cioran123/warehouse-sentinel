@@ -175,7 +175,6 @@ async function main(): Promise<void> {
     ),
   );
   results.push(await checkDir("storage/db directory", path.join(root, "storage", "db")));
-  results.push(await checkDir("storage/reels directory", path.join(root, "storage", "reels")));
   results.push(await checkOptionalEnv("ANTHROPIC_API_KEY", "keyword search parsing"));
   results.push(await checkOptionalEnv("WANDB_API_KEY", "no Weave tracing"));
   results.push(await checkOptionalAny(

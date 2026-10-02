@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { IncidentView } from "@/app/lib/incidentView";
 import { useCommand } from "@/app/lib/ui/commandStore";
@@ -10,6 +11,8 @@ type Load = { id: string; view?: IncidentView; error?: string };
 
 export default function IncidentDrawer() {
   const { openIncidentId, openIncident, selectZone } = useCommand();
+  const onSiteMap = usePathname().startsWith("/site-map");
+  const router = useRouter();
   const [load, setLoad] = useState<Load | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -51,50 +54,57 @@ export default function IncidentDrawer() {
         type="button"
         aria-label="Close incident"
         onClick={() => openIncident(null)}
-        className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-[2px]"
+        className="absolute inset-0 cursor-default bg-ink/25"
       />
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="drawer-in relative flex h-full w-full max-w-[1100px] flex-col border-l border-white/10 bg-[#09090f] shadow-2xl outline-none sm:w-[92vw]"
+        className="drawer-in relative flex h-full w-full max-w-[1100px] flex-col border-l border-line bg-canvas shadow-2xl outline-none sm:w-[92vw]"
       >
-        <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Incident review</span>
-          <span className="font-mono text-[11px] text-slate-600">{openIncidentId}</span>
+        <div className="flex items-center gap-3 border-b border-line bg-surface px-5 py-2.5">
+          <span className="text-[13px] font-semibold text-ink">Review</span>
+          <span className="font-mono text-[11px] text-ink-3">{openIncidentId}</span>
           {view && !view.live && (
             <button
               type="button"
-              onClick={() => selectZone(view.camera.zoneId)}
-              className="rounded-md border border-white/10 px-2 py-0.5 text-[11px] text-slate-400 hover:border-white/30 hover:text-white"
+              onClick={() => {
+                if (onSiteMap) {
+                  selectZone(view.camera.zoneId);
+                  openIncident(null);
+                } else {
+                  router.push(`/site-map?zone=${encodeURIComponent(view.camera.zoneId)}`);
+                }
+              }}
+              className="rounded-md px-2 py-1 text-[12px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
             >
-              Show {view.camera.zone} on map
+              Show {view.camera.zone} on site map
             </button>
           )}
           <Link
             href={`/incident/${openIncidentId}`}
-            className="ml-auto text-[11px] text-slate-500 hover:text-slate-300"
+            className="ml-auto rounded-md px-2 py-1 text-[12px] text-ink-3 transition-colors hover:bg-hover hover:text-ink"
           >
             Open full page ↗
           </Link>
           <button
             type="button"
             onClick={() => openIncident(null)}
-            className="rounded-md border border-white/10 px-2 py-0.5 text-[11px] text-slate-300 hover:border-white/30"
+            className="flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[12px] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
           >
-            Close <kbd className="ml-1 text-slate-500">Esc</kbd>
+            Close <kbd className="rounded border border-line bg-sunken px-1 font-sans text-[10px] text-ink-3">Esc</kbd>
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           {!current && (
             <div className="flex animate-pulse flex-col gap-3" aria-label="Loading incident">
-              <div className="h-6 w-72 rounded bg-white/5" />
-              <div className="h-4 w-48 rounded bg-white/5" />
-              <div className="aspect-video w-full max-w-3xl rounded-xl bg-white/5" />
-              <div className="h-12 w-full max-w-3xl rounded bg-white/5" />
+              <div className="h-6 w-72 rounded bg-hover" />
+              <div className="h-4 w-48 rounded bg-hover" />
+              <div className="aspect-video w-full max-w-3xl rounded-xl bg-hover" />
+              <div className="h-12 w-full max-w-3xl rounded bg-hover" />
             </div>
           )}
           {current?.error && (
-            <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+            <div className="rounded-lg border border-high-line bg-high-soft px-4 py-3 text-[13px] text-high">
               Could not load this incident: {current.error}
             </div>
           )}

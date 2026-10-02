@@ -29,7 +29,7 @@ function Chip({ children, onClick }: { children: React.ReactNode; onClick: () =>
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-white/10 px-2.5 py-1 text-left text-[11px] text-slate-400 transition-colors hover:border-white/25 hover:text-slate-200"
+      className="rounded-md px-2 py-1.5 text-left text-[13px] text-ink-2 transition-colors hover:bg-hover hover:text-ink"
     >
       {children}
     </button>
@@ -45,27 +45,26 @@ function AssistantMessage({ msg, zoneName }: { msg: Extract<Message, { role: "as
   return (
     <div className="flex flex-col gap-2">
       <div
-        className={`rounded-xl rounded-tl-sm px-3 py-2 text-[13px] leading-relaxed ${
-          msg.error ? "border border-red-500/40 bg-red-500/10 text-red-100" : "bg-white/[0.05] text-slate-200"
+        className={`text-[13px] leading-relaxed ${
+          msg.error ? "rounded-lg border border-high-line bg-high-soft px-3 py-2 text-high" : "text-ink"
         }`}
       >
         {msg.content}
       </div>
       {d && (
         <>
-          <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
-            <span>{d.parser === "claude" ? "Claude" : "Keyword rules"}{d.followUp ? " · refined previous" : ""}:</span>
-            {d.filters.eventTypes.map((t) => (
-              <span key={t} className="rounded bg-white/5 px-1.5 py-0.5 text-slate-300">{EVENT_LABEL[t]}</span>
-            ))}
-            {d.filters.priorities.map((p) => (
-              <span key={p} className="rounded bg-white/5 px-1.5 py-0.5 text-slate-300">{p} priority</span>
-            ))}
-            <span className="rounded bg-white/5 px-1.5 py-0.5 text-slate-300">{d.filters.statuses.join("/")}</span>
-            <span>· {d.totalResults} result{d.totalResults === 1 ? "" : "s"}{d.backend ? ` · ${d.backend}` : ""}</span>
-          </div>
+          <p className="text-[12px] leading-relaxed text-ink-3">
+            {d.totalResults} result{d.totalResults === 1 ? "" : "s"} for{" "}
+            {[
+              d.filters.eventTypes.length ? d.filters.eventTypes.map((t) => EVENT_LABEL[t]).join(" or ") : "any event",
+              ...d.filters.priorities.map((p) => `${p} priority`),
+              d.filters.statuses.join(" or "),
+            ].join(", ")}
+            {d.followUp ? ", refining the last answer" : ""}. Parsed by {d.parser === "claude" ? "Claude" : "keyword rules"}
+            {d.backend ? `, ${d.backend} index` : ""}.
+          </p>
           {d.zoneIds.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
               {d.zoneIds.map((z) => {
                 const count = d.zoneCounts?.find((c) => c.zoneId === z);
                 return (
@@ -73,13 +72,11 @@ function AssistantMessage({ msg, zoneName }: { msg: Extract<Message, { role: "as
                     key={z}
                     type="button"
                     onClick={() => toggleZone(z)}
-                    className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
-                      selectedZoneId === z
-                        ? "border-white/40 bg-white/10 text-white"
-                        : "border-sky-400/40 bg-sky-400/10 text-sky-200 hover:border-sky-300"
+                    className={`text-[12px] font-medium underline-offset-2 transition-colors hover:underline ${
+                      selectedZoneId === z ? "text-ink underline" : "text-accent"
                     }`}
                   >
-                    ◎ {zoneName(z)}{count ? ` · ${count.total}` : ""}
+                    {zoneName(z)}{count ? ` (${count.total})` : ""}
                   </button>
                 );
               })}
@@ -88,13 +85,13 @@ function AssistantMessage({ msg, zoneName }: { msg: Extract<Message, { role: "as
           {incidents.length > 0 && (
             <div className="flex flex-col gap-1.5">
               {incidents.map((i) => (
-                <IncidentCard key={i.id} incident={i} compact />
+                <IncidentCard key={i.id} incident={i} compact clip />
               ))}
               {d.incidents.length > SHOWN && (
                 <button
                   type="button"
                   onClick={() => setExpanded((e) => !e)}
-                  className="self-start text-[11px] text-slate-500 hover:text-slate-300"
+                  className="self-start text-[12px] text-ink-3 transition-colors hover:text-ink"
                 >
                   {expanded ? "Show fewer" : `Show ${d.incidents.length - SHOWN} more`}
                 </button>
@@ -179,27 +176,25 @@ export default function ChatPanel({ zones, initialQuery }: { zones: ZoneCount[];
   const lastIsAnswer = messages.length > 0 && messages[messages.length - 1].role === "assistant";
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-[#07070e]">
-      <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Assistant</h2>
-          <p className="text-[11px] text-slate-500">Ask about incidents across the site</p>
-        </div>
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-surface">
+      <div className="flex items-baseline justify-between px-5 pb-2 pt-5">
+        <h2 className="text-[15px] font-semibold tracking-tight text-ink">Assistant</h2>
         {messages.length > 0 && (
-          <button type="button" onClick={clear} className="text-[11px] text-slate-500 hover:text-slate-300">
+          <button type="button" onClick={clear} className="text-[12px] text-ink-3 transition-colors hover:text-ink">
             Clear
           </button>
         )}
       </div>
 
-      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 pb-4">
         {messages.length === 0 && (
           <div className="flex flex-col gap-3">
-            <p className="text-[13px] text-slate-400">
-              Answers come only from the incident ledger. Matching zones light up on the map, and any incident
-              opens in place for review.
+            <p className="text-[13px] leading-relaxed text-ink-2">
+              Answers come only from the incident ledger. Each match plays its evidence clip here, cameras in
+              matching zones are outlined, and any incident opens in place for the full recording.
             </p>
-            <div className="flex flex-col items-start gap-1.5">
+            <div className="-mx-2 flex flex-col items-start">
+              <span className="px-2 pb-1 text-[12px] text-ink-3">Try</span>
               {EXAMPLES.map((ex) => (
                 <Chip key={ex} onClick={() => void send(ex)}>{ex}</Chip>
               ))}
@@ -208,7 +203,7 @@ export default function ChatPanel({ zones, initialQuery }: { zones: ZoneCount[];
         )}
         {messages.map((m) =>
           m.role === "user" ? (
-            <div key={m.id} className="self-end rounded-xl rounded-tr-sm bg-sky-500/15 px-3 py-2 text-[13px] text-sky-50">
+            <div key={m.id} className="max-w-[85%] self-end rounded-xl bg-sunken px-3 py-2 text-[13px] text-ink">
               {m.content}
             </div>
           ) : (
@@ -216,17 +211,17 @@ export default function ChatPanel({ zones, initialQuery }: { zones: ZoneCount[];
           ),
         )}
         {loading && (
-          <div className="flex items-center gap-1.5 self-start rounded-xl bg-white/[0.05] px-3 py-2.5" aria-label="Thinking">
+          <div className="flex items-center gap-1.5 self-start py-1" aria-label="Thinking">
             {[0, 150, 300].map((d) => (
-              <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: `${d}ms` }} />
+              <span key={d} className="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3" style={{ animationDelay: `${d}ms` }} />
             ))}
           </div>
         )}
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-white/[0.08] p-3">
+      <div className="flex flex-col gap-2 border-t border-line p-4">
         {(zoneChips.length > 0 || lastIsAnswer) && !loading && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="-mx-2 flex flex-wrap">
             {zoneChips.map((c) => (
               <Chip key={c} onClick={() => void send(c)}>{c}</Chip>
             ))}
@@ -242,20 +237,20 @@ export default function ChatPanel({ zones, initialQuery }: { zones: ZoneCount[];
             e.preventDefault();
             void send(input);
           }}
-          className="flex gap-2"
+          className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface p-1 pl-3 transition-shadow focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--color-accent-soft)]"
         >
           <input
             ref={chatInputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             maxLength={500}
-            placeholder={zone ? `Ask about ${zone}…` : "Ask about incidents…  ( / )"}
-            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0c0c12] px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-white/30 focus:outline-none"
+            placeholder={zone ? `Ask about ${zone}…` : "Ask about incidents…"}
+            className="min-w-0 flex-1 bg-transparent py-1.5 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus-visible:outline-none"
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="rounded-lg bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20 disabled:opacity-40"
+            className="rounded-md bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-accent-hover disabled:bg-sunken disabled:text-ink-3"
           >
             Ask
           </button>

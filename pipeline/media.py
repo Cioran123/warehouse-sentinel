@@ -13,7 +13,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-TARGET_W, TARGET_H, TARGET_FPS = 1280, 720, 30
+# 1080p keeps heads large enough for the hard-hat cue (pipeline/ppe.py); the VAST SDG clips are 1080p.
+TARGET_W, TARGET_H, TARGET_FPS = 1920, 1080, 30
 
 
 def require(bin_name: str) -> str:
@@ -47,6 +48,67 @@ def cut_clip(src: Path, start: float, end: float, out: Path) -> Path:
         "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
         "-movflags", "+faststart", str(out),
     ])
+    return out
+
+
+SUBJECT_BGR, OTHER_BGR, ZONE_BGR, VEHICLE_BGR = (40, 40, 230), (200, 200, 200), (0, 0, 255), (0, 170, 255)
+
+
+def cut_annotated_clip(src: Path, start: float, end: float, out: Path, tracks: dict,
+                       subject_ids: list[int], polygons: list) -> Path:
+    """Cut [start, end] with the restricted zones, the incident's tracked subjects and everyone else drawn on."""
+    cap = cv2.VideoCapture(str(src))
+    fps = cap.get(cv2.CAP_PROP_FPS) or TARGET_FPS
+    cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, start) * 1000)
+    ok, frame = cap.read()
+    if not ok:
+        cap.release()
+        return cut_clip(src, start, end, out)
+    h, w = frame.shape[:2]
+    out_h = 480
+    out_w = int(round(w * out_h / h / 2)) * 2
+    samples = tracks.get("frames", [])
+    max_gap = 1.5 / max(tracks.get("fps", 5) or 5, 1e-6)
+    subjects = set(subject_ids)
+    writer = VideoWriter(out, out_w, out_h, fps)
+    t = max(0.0, start)
+    try:
+        while ok and t <= end + 1e-6:
+            frame = cv2.resize(frame, (out_w, out_h))
+            overlay = frame.copy()
+            for poly in polygons:
+                pts = np.array([[x * out_w, y * out_h] for x, y in poly], dtype=np.int32)
+                cv2.fillPoly(overlay, [pts], ZONE_BGR)
+            cv2.addWeighted(overlay, 0.18, frame, 0.82, 0, frame)
+            for poly in polygons:
+                pts = np.array([[x * out_w, y * out_h] for x, y in poly], dtype=np.int32)
+                cv2.polylines(frame, [pts], True, ZONE_BGR, 2, cv2.LINE_AA)
+            nearest = min(samples, key=lambda s: abs(s["t"] - t), default=None)
+            if nearest is not None and abs(nearest["t"] - t) <= max_gap:
+                for v in nearest.get("vehicles", []):
+                    x1, y1, x2, y2 = v["box"]
+                    p1, p2 = (int(x1 * out_w), int(y1 * out_h)), (int(x2 * out_w), int(y2 * out_h))
+                    cv2.rectangle(frame, p1, p2, VEHICLE_BGR, 2, cv2.LINE_AA)
+                    cv2.putText(frame, v.get("cls", "vehicle"), (p1[0] + 3, p1[1] + 16), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5, VEHICLE_BGR, 1, cv2.LINE_AA)
+                for b in sorted(nearest["boxes"], key=lambda b: b["id"] in subjects):
+                    x1, y1, x2, y2 = b["box"]
+                    p1, p2 = (int(x1 * out_w), int(y1 * out_h)), (int(x2 * out_w), int(y2 * out_h))
+                    subject = b["id"] in subjects
+                    color = SUBJECT_BGR if subject else OTHER_BGR
+                    cv2.rectangle(frame, p1, p2, color, 2 if subject else 1, cv2.LINE_AA)
+                    if subject:
+                        label = f"#{b['id']}"
+                        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                        cv2.rectangle(frame, (p1[0], p1[1] - th - 6), (p1[0] + tw + 6, p1[1]), color, -1)
+                        cv2.putText(frame, label, (p1[0] + 3, p1[1] - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                    (255, 255, 255), 1, cv2.LINE_AA)
+            writer.write(frame)
+            ok, frame = cap.read()
+            t += 1.0 / fps
+    finally:
+        cap.release()
+        writer.close()
     return out
 
 
@@ -89,22 +151,6 @@ def draw_banner(frame: np.ndarray, text: str, *, top: bool = True, scale: float 
     cv2.rectangle(overlay, (0, y0), (min(w, tw + 2 * pad), y0 + th + base + 2 * pad), (0, 0, 0), -1)
     cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
     cv2.putText(frame, text, (pad, y0 + pad + th), font, scale, (255, 255, 255), 1, cv2.LINE_AA)
-
-
-def render_label_png(lines: list[str], out: Path, width: int = TARGET_W) -> Path:
-    """Transparent lower-third PNG for ffmpeg's `overlay` filter (used by the review reel)."""
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    line_h, pad = 30, 14
-    h = pad * 2 + line_h * len(lines)
-    img = np.zeros((h, width, 4), dtype=np.uint8)
-    img[:, :, 3] = 170
-    for i, line in enumerate(lines):
-        scale = 0.75 if i == 0 else 0.55
-        color = (255, 255, 255, 255) if i == 0 else (210, 210, 210, 255)
-        cv2.putText(img, line, (pad, pad + 22 + i * line_h), font, scale, color, 1 if i else 2, cv2.LINE_AA)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(out), img)
-    return out
 
 
 def sample_frames(src: Path, start: float, end: float, n: int) -> list[np.ndarray]:
