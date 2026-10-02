@@ -1,0 +1,11 @@
+{
+  "id": "WEBCAM",
+  "zone": "Local webcam",
+  "zoneId": "webcam",
+  "videoFile": "webcam-live",
+  "sourceType": "team_recorded",
+  "scenario": "Live webcam session, checked as it streams.",
+  "restrictedPolygons": [
+    [[0.72, 0.0], [1.0, 0.0], [1.0, 1.0], [0.72, 1.0]]
+  ]
+}

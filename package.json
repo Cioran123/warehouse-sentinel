@@ -1,0 +1,35 @@
+{
+  "name": "warehouse-sentinel",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dashboard": "bash scripts/dashboard.sh",
+    "live": ".venv/bin/python pipeline/live_server.py",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "doctor": "tsx src/scripts/doctor.ts",
+    "pipeline": "python3 pipeline/run_all.py",
+    "eval": "python3 pipeline/evaluate.py"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
+    "dotenv": "^17.4.2",
+    "next": "16.2.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "weave": "^0.16.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  }
+}
