@@ -74,7 +74,7 @@ export function ZoneFloors({
   );
 }
 
-/** The forklift-only lane down Aisle A, which restricted-entry alerts are measured against. */
+/** The robot lane in the cross aisle, which restricted-entry alerts are measured against. */
 export function RestrictedLane({ alerted }: { alerted: boolean }) {
   const strip = boxOf({
     x: LANE.left,

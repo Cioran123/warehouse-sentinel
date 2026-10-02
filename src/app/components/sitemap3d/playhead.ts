@@ -4,8 +4,12 @@
  * It lives outside React state on purpose: the frame loop reads and advances it sixty times a
  * second, and re-rendering the scene at that rate would be pointless work.
  */
+import { cameraTime } from "@/app/lib/ui/videoClock";
+
 export class Playhead {
   t = 0;
+  /** Footage length per camera; each camera's tracks loop over their own clip. */
+  cameraDurations: Record<string, number> = {};
   playing = true;
   speed = 1;
   duration = 120;
@@ -27,6 +31,11 @@ export class Playhead {
 
   setSpeed(speed: number): void {
     this.speed = speed;
+  }
+
+  /** Where a camera's tracks are now: its live tile if one is playing, else the site clock. */
+  cameraT(cameraId: string): number {
+    return cameraTime(cameraId, this.t, this.cameraDurations[cameraId] ?? this.duration);
   }
 
   setDuration(duration: number): void {

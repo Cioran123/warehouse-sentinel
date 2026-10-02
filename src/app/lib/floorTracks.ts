@@ -44,6 +44,8 @@ export interface FloorAgent {
 
 export interface FloorCamera {
   id: string;
+  /** Length of this camera's footage; its tracks loop over it. */
+  durationSec: number;
   zoneId: string;
   zone: string;
   calibrated: boolean;
@@ -120,12 +122,9 @@ export async function buildFloorTracks(): Promise<FloorTracks> {
   const [venue, incidents] = await Promise.all([loadVenue(), listIncidents()]);
   const loaded = await Promise.all(venue.cameras.map((c) => readTracks(c.id)));
 
-  const durationSec = Math.max(
-    60,
-    ...loaded.map((t) =>
-      t ? (t.durationSec ?? (t.frames.at(-1)?.t ?? 0) + 1 / Math.max(1, t.fps)) : 0,
-    ),
-  );
+  const lengthOf = (t: CameraTracks | null) =>
+    t ? (t.durationSec ?? (t.frames.at(-1)?.t ?? 0) + 1 / Math.max(1, t.fps)) : 0;
+  const durationSec = Math.max(1, ...loaded.map(lengthOf));
   const sampleCount = Math.floor(durationSec / SAMPLE_STEP) + 1;
 
   const agents: FloorAgent[] = [];
@@ -137,6 +136,7 @@ export async function buildFloorTracks(): Promise<FloorTracks> {
     if (!tracks || !h) {
       cameras.push({
         id: camera.id,
+        durationSec: lengthOf(tracks) || camera.durationSec,
         zoneId: camera.zoneId,
         zone: camera.zone,
         calibrated: !!h,
@@ -156,9 +156,11 @@ export async function buildFloorTracks(): Promise<FloorTracks> {
       // Keep the detection closest to the sample instant.
       if (Math.abs(frame.t - slot * SAMPLE_STEP) > SAMPLE_STEP / 2) continue;
 
-      const add = (key: string, box: [number, number, number, number], prone: boolean) => {
+      const add = (key: string, box: [number, number, number, number], prone: boolean, vehicle = false) => {
         // A standing body meets the floor at the bottom of its box; a prone one lies across it.
-        const iy = prone ? (box[1] + box[3]) / 2 : box[3];
+        // A vehicle box's bottom edge is its forks or load reaching toward the camera, so its body
+        // sits a third of the way up.
+        const iy = prone ? (box[1] + box[3]) / 2 : vehicle ? box[3] - 0.3 * (box[3] - box[1]) : box[3];
         const foot = clampToFloor(project(h, (box[0] + box[2]) / 2, iy));
         if (!Number.isFinite(foot.x) || !Number.isFinite(foot.y)) return;
         let series = sampleOf.get(key);
@@ -176,7 +178,7 @@ export async function buildFloorTracks(): Promise<FloorTracks> {
       for (const v of frame.vehicles ?? []) {
         const key = `${camera.id}#v${v.id}`;
         kindOf.set(key, { kind: "vehicle", trackId: v.id, cls: v.cls });
-        add(key, v.box, false);
+        add(key, v.box, false, true);
       }
     }
 
@@ -235,6 +237,7 @@ export async function buildFloorTracks(): Promise<FloorTracks> {
 
     cameras.push({
       id: camera.id,
+      durationSec: lengthOf(tracks),
       zoneId: camera.zoneId,
       zone: camera.zone,
       calibrated: true,

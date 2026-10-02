@@ -11,7 +11,7 @@ import IncidentCard from "./IncidentCard";
 const EXAMPLES = [
   "Show every forklift near miss across the site.",
   "Find people in restricted areas.",
-  "Has anyone gone down in the pick zone?",
+  "Is anyone missing a hard hat?",
   "Which zones had repeated incidents?",
   "Show rejected candidates.",
 ];

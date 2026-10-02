@@ -6,6 +6,7 @@ import { formatSpan } from "@/app/lib/format";
 import { EVENT_LABEL, PRIORITY_COLOR, type CameraTracks, type Incident } from "@/app/lib/types";
 import { VerificationBadge } from "./Badges";
 import IncidentLink from "./IncidentLink";
+import { forgetVideo, reportVideoTime } from "@/app/lib/ui/videoClock";
 import TrackOverlay, { nearestFrame } from "./TrackOverlay";
 
 /** Only states that need the supervisor's attention get a note; indexed cameras say nothing. */
@@ -48,6 +49,8 @@ export default function CameraTile({ status, showOverlay, active, onTime, select
     };
   }, [camera.id, hasVideo]);
 
+  useEffect(() => () => forgetVideo(camera.id), [camera.id]);
+
   const frame = tracks ? nearestFrame(tracks.frames, time) : null;
   const top = active[0];
   const pulseColor = top ? PRIORITY_COLOR[top.priority] : undefined;
@@ -80,10 +83,12 @@ export default function CameraTile({ status, showOverlay, active, onTime, select
               playsInline
               preload="auto"
               onTimeUpdate={(e) => {
-                const t = e.currentTarget.currentTime;
-                setTime(t);
-                onTime(camera.id, t);
+                const v = e.currentTarget;
+                setTime(v.currentTime);
+                onTime(camera.id, v.currentTime);
+                reportVideoTime(camera.id, v.currentTime, !v.paused, v.duration);
               }}
+              onPause={(e) => reportVideoTime(camera.id, e.currentTarget.currentTime, false, e.currentTarget.duration)}
             />
             {showOverlay && frame && (
               <div className="pointer-events-none absolute inset-0">

@@ -40,6 +40,7 @@ VAST segments bucket ──vast_fetch.py──▶ footage/WH_CAM_0x/*.mp4
 | `vehicle_pedestrian_proximity` | a tracked person's foot point within 0.5 body-heights of a vehicle box for 0.4s+ while that vehicle is moving; parked vehicles, and vehicles under 1.8x the person's height (pallet jacks and carts being pushed), are ignored |
 | `restricted_zone_entry` | a person's foot point moves from outside to inside a restricted polygon (forklift-only lane, keep-out area) |
 | `person_down_or_inactivity` | a track is low and nearly still for 6s+, or a lying-shaped detection stays at one spot for 2s+; pose adds torso tilt |
+| `ppe_missing_hard_hat` | on cameras with `"ppeRequired": true`, a tracked person's head reads as bare (or a soft cap) in 70%+ of the frames where it is clear enough to judge |
 
 Thresholds live in `pipeline/candidates.py` (`DEFAULTS`) and can be overridden per camera with a
 `thresholds` object in `pipeline/config/cameras.json`. `python pipeline/selftest.py` checks all
@@ -70,6 +71,26 @@ Environment goes in `.env.local` (see the variable table in `pipeline/verify.py`
 `pipeline/vast_sync.py`, and `pipeline/vast_fetch.py` docstrings). On the Builders Challenge VM,
 `/config/<team>.config` is picked up automatically. With no keys at all everything still runs:
 incidents stay unverified `candidate`s and search uses keyword rules.
+
+**Hard hats and robots.** No stock model detects hard hats, and the SDG footage has humanoid
+robots that the person detector picks up. `pipeline/ppe.py` runs CLIP (ViT-B/32) zero-shot on each
+tracked person's head-and-shoulders crop (hard hat / bare head / robot), with a color check on the
+crown that overrides to "hat" when a solid shell is visible. Tracks that are mostly "robot" move to
+`robots` in tracks.json and never reach the person checks. `SENTINEL_PPE=0` turns this off.
+
+## Demo footage
+
+| Camera | Zone | Clip | Scenario |
+|---|---|---|---|
+| WH_CAM_01 | Forklift Lane | `ceiling_04` (10s) | order picker swings into a worker: near miss |
+| WH_CAM_02 | Staging Floor (hard hats required) | Warehouse_017 Camera_02 | worker without a hard hat |
+| WH_CAM_03 | Cross Aisle | Warehouse_017 Camera | worker walks into the robot lane |
+| WH_CAM_04 | Shipping Dock | Warehouse_017 Camera_01 | pallet jack and robot only: normal |
+
+The floor plan (`src/app/lib/floorPlan.ts`) is laid out from what these cameras show, and each
+camera's ground calibration (`src/app/lib/cameraGround.ts`) projects its tracks onto it. The Site
+Map's 3D and plan views follow each camera's video time when its tile is playing, so markers on
+the floor move in step with the footage.
 
 ## Getting footage from VAST
 

@@ -45,17 +45,17 @@ const PRIORITIES: Priority[] = ["low", "medium", "high"];
 const STATUSES: VerificationStatus[] = ["candidate", "kept", "rejected"];
 export const DEFAULT_STATUSES: VerificationStatus[] = ["kept", "candidate"];
 const EVENT_KEYWORDS: Record<EventType, RegExp> = {
-  restricted_zone_entry: /\b(restricted|keep[- ]out|no[- ]go|forklift[- ]only|forklift lanes?|hazard (zone|area)s?|trespass\w*|unauthori[sz]ed|breach\w*|zone entr\w*|entries|intru\w*)\b/,
+  restricted_zone_entry: /\b(restricted|keep[- ]out|no[- ]go|forklift[- ]only|forklift lanes?|robot lanes?|amr lanes?|hazard (zone|area)s?|trespass\w*|unauthori[sz]ed|breach\w*|zone entr\w*|entries|intru\w*)\b/,
   vehicle_pedestrian_proximity: /\b(near[- ]miss\w*|close calls?|forklift(?![- ](only|lanes?))s?|pallet jacks?|vehicles?|trucks?|collisions?|struck|hit by|proximity|too close)\b/,
   ppe_missing_hard_hat: /\b(hard ?hats?|helmets?|ppe|head protection|safety gear|protective gear|no hat|without (a )?hat)\b/,
   person_down_or_inactivity: /\b(down|fall\w*|fell|fallen|slip\w*|trip\w*|inactiv\w*|motionless|collaps\w*|unresponsive|lying|still)\b/,
 };
 
 const ZONE_KEYWORDS: Record<string, RegExp> = {
-  receiving_dock: /\b(receiving|inbound|unload\w*|docks?|dock doors?)\b/,
-  aisle_a: /\b(aisles?|aisle a|racks?|racking)\b/,
-  pick_zone: /\b(pick\w*|order picking)\b/,
-  charging_station: /\b(charg\w*|batter(y|ies)|parked|parking)\b/,
+  forklift_lane: /\b(forklift lanes?|dock doors?|roll[- ]up doors?|receiving)\b/,
+  shipping_dock: /\b(shipping|outbound|shipping docks?)\b/,
+  staging_floor: /\b(staging|racks?|racking|pallet racks?)\b/,
+  cross_aisle: /\b(cross[- ]aisles?|aisles?|robot lanes?|amr lanes?)\b/,
 };
 
 // Out of scope: identity, and using safety footage to judge individual workers.

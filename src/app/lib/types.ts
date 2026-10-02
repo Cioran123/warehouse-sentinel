@@ -56,6 +56,8 @@ export interface Camera {
   sourceType: SourceType;
   scenario: string;
   restrictedPolygons?: Point[][];
+  /** Hard hats required in view; enables the missing-hard-hat check. */
+  ppeRequired?: boolean;
   /** Operational region; detections and optical flow are limited to it. */
   roi?: Point[];
   /** Absent for the live webcam, which has no labeled scenario. */
@@ -91,6 +93,8 @@ export interface TrackBox {
   box: [number, number, number, number];
   /** 17 COCO keypoints as normalized [x, y, conf]; display only, absent when no skeleton matched. */
   kp?: [number, number, number][];
+  /** Head cue from pipeline/ppe.py: "hat", "none" (no hard hat), or "unknown". */
+  ppe?: "hat" | "none" | "unknown";
 }
 
 /** Scene-level optical flow inside the camera ROI (see pipeline/detect.py). */
@@ -117,6 +121,8 @@ export interface TrackFrame {
   t: number;
   boxes: TrackBox[];
   vehicles?: VehicleBox[];
+  /** Humanoid robots and AMRs the person detector picked up, kept out of every person check. */
+  robots?: { id: number; box: [number, number, number, number] }[];
   flow?: FlowStats | null;
 }
 

@@ -29,6 +29,7 @@ import {
   ZONES,
 } from "@/app/lib/floorPlan";
 import { useCommand } from "@/app/lib/ui/commandStore";
+import FloorAgents from "./FloorAgents";
 
 const W = PLAN_W;
 const H = PLAN_H;
@@ -124,8 +125,12 @@ export default function VenueMap({ zones, statuses }: Props) {
 
         {/* areas without a camera */}
         <g className="pointer-events-none">
-          <rect x={SHIPPING_DOCK.x} y={SHIPPING_DOCK.y} width={SHIPPING_DOCK.w} height={SHIPPING_DOCK.h} rx="4" fill="none" stroke="#c4c8cf" strokeDasharray="5 5" />
-          <text x={SHIPPING_DOCK.x + 16} y={SHIPPING_DOCK.y + 24} className="fill-ink-3 text-[11px] font-medium tracking-[0.1em]">SHIPPING DOCK</text>
+          {SHIPPING_DOCK.w > 0 && (
+            <>
+              <rect x={SHIPPING_DOCK.x} y={SHIPPING_DOCK.y} width={SHIPPING_DOCK.w} height={SHIPPING_DOCK.h} rx="4" fill="none" stroke="#c4c8cf" strokeDasharray="5 5" />
+              <text x={SHIPPING_DOCK.x + 16} y={SHIPPING_DOCK.y + 24} className="fill-ink-3 text-[11px] font-medium tracking-[0.1em]">SHIPPING DOCK</text>
+            </>
+          )}
           <rect x={OFFICE.x} y={OFFICE.y} width={OFFICE.w} height={OFFICE.h} rx="4" fill="#eef0f3" stroke="#d3d6dc" />
           <line x1={OFFICE_SPLIT_X} y1={OFFICE.y} x2={OFFICE_SPLIT_X} y2={OFFICE.y + OFFICE.h} stroke="#d3d6dc" />
           <text x={OFFICE.x + 16} y={OFFICE.y + 24} className="fill-ink-3 text-[11px] font-medium tracking-[0.1em]">OFFICE</text>
@@ -192,7 +197,7 @@ export default function VenueMap({ zones, statuses }: Props) {
           {[LANE.left, LANE.right].map((x) => (
             <line key={x} x1={x} y1={LANE.top} x2={x} y2={LANE.bottom} stroke="#c99a12" strokeOpacity="0.8" strokeWidth="2" strokeDasharray="12 8" />
           ))}
-          {[316, 404, 492].map((y) => {
+          {[0.25, 0.5, 0.75].map((f) => LANE.top + f * (LANE.bottom - LANE.top)).map((y) => {
             const mid = (LANE.left + LANE.right) / 2;
             return (
               <path key={y} d={`M${mid - 14} ${y - 8} L${mid} ${y + 4} L${mid + 14} ${y - 8}`} fill="none" stroke="#c99a12" strokeOpacity="0.7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -225,6 +230,8 @@ export default function VenueMap({ zones, statuses }: Props) {
             );
           })}
         </g>
+
+        <FloorAgents />
 
         {statuses.map((s) => {
           const pin = CAMERA_PINS[s.camera.zoneId];

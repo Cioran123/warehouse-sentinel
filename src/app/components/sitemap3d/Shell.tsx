@@ -213,11 +213,13 @@ function Ground() {
         <planeGeometry args={[walk.w, walk.d]} />
         <meshBasicMaterial color="#3f8a4f" transparent opacity={0.1} />
       </mesh>
-      <mesh position={[ship.x, 0.012, ship.z]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[ship.w, ship.d]} />
-        <meshBasicMaterial color={C.ink} transparent opacity={0.025} />
-        <Edges color={C.fixture} />
-      </mesh>
+      {SHIPPING_DOCK.w > 0 && (
+        <mesh position={[ship.x, 0.012, ship.z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[ship.w, ship.d]} />
+          <meshBasicMaterial color={C.ink} transparent opacity={0.025} />
+          <Edges color={C.fixture} />
+        </mesh>
+      )}
     </group>
   );
 }

@@ -69,9 +69,11 @@ export function Driver({
   const lastKey = useRef("");
   useFrame((_, dt) => {
     head.advance(dt);
-    const now = head.t;
-    onTick(now);
-    const open = incidents.filter((i) => now >= i.startSec && now <= i.endSec);
+    onTick(head.t);
+    const open = incidents.filter((i) => {
+      const now = head.cameraT(i.cameraId);
+      return now >= i.startSec && now <= i.endSec;
+    });
     const key = open.map((i) => i.id).join(",");
     if (key !== lastKey.current) {
       lastKey.current = key;
@@ -93,7 +95,7 @@ interface Pose {
 function usePose(path: AgentPath, head: Playhead, step: number) {
   const pose = useRef<Pose>({ x: path.wx[0], z: path.wz[0], heading: 0, prone: 0, speed: 0 });
   const sample = (dt: number): boolean => {
-    const s = head.t / step - path.agent.from;
+    const s = head.cameraT(path.agent.cameraId) / step - path.agent.from;
     const n = path.wx.length;
     if (s < -1 || s > n) return false;
     const i0 = Math.max(0, Math.min(n - 1, Math.floor(s)));

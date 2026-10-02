@@ -13,7 +13,7 @@
       "groundTruth": {
         "eventType": "vehicle_pedestrian_proximity",
         "startSec": 1,
-        "endSec": 5
+        "endSec": 6
       }
     },
     {
@@ -38,41 +38,41 @@
       "videoFile": "WH_CAM_03.mp4",
       "durationSec": 5,
       "sourceType": "synthetic_sdg",
-      "scenario": "Open cross aisle with a marked robot/AMR-only lane; a worker walks into the marked lane.",
+      "scenario": "Open cross aisle with a marked robot/pallet-staging lane running in from the hazard post; a worker walks into the lane.",
       "restrictedPolygons": [
         [
           [
-            0.6,
-            0.3
+            0.124,
+            0.278
           ],
           [
-            1.0,
-            0.3
+            0.356,
+            0.301
           ],
           [
-            1.0,
-            0.75
+            0.204,
+            0.981
           ],
           [
-            0.6,
-            0.75
+            0.0,
+            0.98
           ]
         ]
       ],
       "groundTruth": {
         "eventType": "restricted_zone_entry",
-        "startSec": 0,
+        "startSec": 1.5,
         "endSec": 5
       }
     },
     {
       "id": "WH_CAM_04",
-      "zone": "Dock Wall",
-      "zoneId": "dock_wall",
+      "zone": "Shipping Dock",
+      "zoneId": "shipping_dock",
       "videoFile": "WH_CAM_04.mp4",
       "durationSec": 5,
       "sourceType": "synthetic_sdg",
-      "scenario": "A loaded pallet jack and a delivery robot move along the dock wall; no people. Normal activity, used to measure false positives."
+      "scenario": "A loaded pallet jack and a delivery robot move along the shipping-dock wall; no people. Normal activity, used to measure false positives."
     }
   ],
   "normalSegments": [

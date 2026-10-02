@@ -20,7 +20,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       synthetic: raw.synthetic,
       frames: raw.frames.map((f) => ({
         t: f.t,
-        boxes: f.boxes.map(({ id: tid, box, kp }) => ({ id: tid, box, kp })),
+        boxes: f.boxes.map(({ id: tid, box, kp, ppe }) => ({ id: tid, box, kp, ppe })),
+        robots: f.robots,
         vehicles: f.vehicles?.map(({ id: vid, box, cls }) => ({ id: vid, box, cls })),
         flow: f.flow ?? null,
       })),

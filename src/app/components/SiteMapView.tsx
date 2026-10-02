@@ -56,7 +56,7 @@ function Legend() {
       </li>
       <li className="flex items-center gap-2">
         <span className="h-3 w-5 rounded-[3px] border-y-2 border-dashed border-[#c99a12]" />
-        Forklift lane
+        Robot lane, no foot traffic
       </li>
     </ul>
   );

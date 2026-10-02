@@ -154,6 +154,7 @@ export default function SiteMap3D({ zones, statuses }: Props) {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: FloorTracks) => {
         head.setDuration(d.durationSec);
+        head.cameraDurations = Object.fromEntries(d.cameras.map((c) => [c.id, c.durationSec]));
         setData(d);
       })
       .catch(() => {
@@ -345,7 +346,7 @@ export default function SiteMap3D({ zones, statuses }: Props) {
           <color attach="background" args={[C.bg]} />
           <Lights />
           <Shell />
-          <RestrictedLane alerted={active.zones.has("aisle_a")} />
+          <RestrictedLane alerted={active.zones.has("cross_aisle")} />
           <ZoneFloors
             zones={zones}
             selectedZoneId={selectedZoneId}

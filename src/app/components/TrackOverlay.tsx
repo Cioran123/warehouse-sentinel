@@ -106,6 +106,21 @@ export default function TrackOverlay({ camera, frame, highlight, showIds = true 
           </g>
         );
       })}
+      {frame?.robots?.map((r) => {
+        const [x1, y1, x2, y2] = r.box;
+        return (
+          <g key={`r${r.id}`}>
+            <rect x={x1 * W} y={y1 * H} width={(x2 - x1) * W} height={(y2 - y1) * H} fill="none"
+              stroke="#cbd5e1" strokeOpacity={0.7} strokeWidth={0.4} strokeDasharray="1 0.8" />
+            {showIds && (
+              <text x={x1 * W + 0.5} y={y1 * H - 0.8} fill="#cbd5e1" fontSize={2.2} fontFamily="ui-monospace, monospace"
+                style={{ paintOrder: "stroke", stroke: "#000", strokeWidth: 0.5 }}>
+                robot
+              </text>
+            )}
+          </g>
+        );
+      })}
       {frame?.boxes.map((b) => {
         const [x1, y1, x2, y2] = b.box;
         const hot = highlight?.has(b.id);
@@ -118,6 +133,12 @@ export default function TrackOverlay({ camera, frame, highlight, showIds = true 
               <text x={x1 * W + 0.5} y={y1 * H - 0.8} fill={color} fontSize={2.6} fontFamily="ui-monospace, monospace"
                 style={{ paintOrder: "stroke", stroke: "#000", strokeWidth: 0.5 }}>
                 #{b.id}
+              </text>
+            )}
+            {camera.ppeRequired && b.ppe === "none" && (
+              <text x={x1 * W + 0.5} y={y2 * H + 2.6} fill="#fca5a5" fontSize={2.2} fontFamily="ui-monospace, monospace"
+                style={{ paintOrder: "stroke", stroke: "#000", strokeWidth: 0.5 }}>
+                no hard hat
               </text>
             )}
           </g>

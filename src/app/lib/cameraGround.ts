@@ -17,61 +17,31 @@ export interface GroundCalibration {
 }
 
 /**
- * The band of each frame that contains floor. Feet in this footage land between y 0.65 and 0.86,
- * so a 0.50-0.96 band brackets the data without extrapolating past the horizon.
- */
-const FLOOR_BAND: GroundCalibration["image"] = [
-  { x: 0, y: 0.96 },
-  { x: 1, y: 0.96 },
-  { x: 1, y: 0.5 },
-  { x: 0, y: 0.5 },
-];
-
-/**
- * Hand-authored calibration, one entry per fixed camera. "Near" is the edge closest to the
- * mount, and near edges are narrower than far edges because that is what perspective does.
+ * Hand-authored calibration, one entry per fixed camera, eyeballed from the VAST SDG frames.
+ * Image quads trace the visible floor (below the wall line, clear of racking); plan quads are
+ * the floor that patch covers. "Near" is the edge closest to the mount.
  */
 export const GROUND: Record<string, GroundCalibration> = {
-  // Mounted on the walkway looking north across the dock face, so image x runs the dock's length.
+  // Forklift lane: west end of the dock wall looking east; the doors are on the image's left.
   WH_CAM_01: {
-    image: FLOOR_BAND,
-    plan: [
-      { x: 150, y: 146 },
-      { x: 470, y: 146 },
-      { x: 556, y: 72 },
-      { x: 70, y: 72 },
-    ],
+    image: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0.05 }, { x: 0.18, y: 0.05 }],
+    plan: [{ x: 96, y: 74 }, { x: 96, y: 150 }, { x: 330, y: 152 }, { x: 330, y: 66 }],
   },
-  // South end of Aisle A looking up the lane: image x runs across the lane, so stepping into it
-  // reads as lateral motion.
+  // Staging floor: south-east corner looking north-west at the west-wall racking.
   WH_CAM_02: {
-    image: FLOOR_BAND,
-    plan: [
-      { x: 440, y: 536 },
-      { x: 504, y: 536 },
-      { x: 532, y: 216 },
-      { x: 412, y: 216 },
-    ],
+    image: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0.08 }, { x: 0, y: 0.3 }],
+    plan: [{ x: 470, y: 574 }, { x: 560, y: 486 }, { x: 470, y: 198 }, { x: 182, y: 470 }],
   },
-  // Over the pick-zone cross aisle looking south at the rack faces.
+  // Cross aisle: south wall looking north; the back wall's steel columns are the north wall.
+  // pipeline/config/cameras.json's restricted polygon is `LANE` pushed back through this quad.
   WH_CAM_03: {
-    image: FLOOR_BAND,
-    plan: [
-      { x: 330, y: 230 },
-      { x: 140, y: 230 },
-      { x: 72, y: 268 },
-      { x: 396, y: 268 },
-    ],
+    image: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0.15 }, { x: 0, y: 0.02 }],
+    plan: [{ x: 700, y: 422 }, { x: 846, y: 422 }, { x: 934, y: 200 }, { x: 602, y: 200 }],
   },
-  // East wall looking west along the charger apron.
+  // Shipping dock: west end of the north wall looking east along the steel columns.
   WH_CAM_04: {
-    image: FLOOR_BAND,
-    plan: [
-      { x: 872, y: 476 },
-      { x: 872, y: 404 },
-      { x: 616, y: 396 },
-      { x: 616, y: 486 },
-    ],
+    image: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0.1 }, { x: 0.3, y: 0.1 }],
+    plan: [{ x: 626, y: 70 }, { x: 626, y: 150 }, { x: 934, y: 152 }, { x: 934, y: 66 }],
   },
 };
 
