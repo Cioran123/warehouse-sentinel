@@ -9,6 +9,7 @@ import {
   type VerificationStatus,
 } from "@/app/lib/types";
 import { listIncidents, loadVenue } from "@/app/lib/venue";
+import { indexBackend } from "@/app/lib/vast";
 import { traced } from "@/app/lib/weave";
 
 export type SearchIntent = "list" | "zone_counts";
@@ -184,7 +185,7 @@ async function retrieveFromVast(filters: SearchFilters): Promise<Incident[]> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(filters),
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(4000),
   });
   if (!res.ok) throw new Error(`VAST search ${res.status}`);
   return ((await res.json()) as { incidents: Incident[] }).incidents;
@@ -192,7 +193,7 @@ async function retrieveFromVast(filters: SearchFilters): Promise<Incident[]> {
 
 async function retrieveImpl(filters: SearchFilters): Promise<{ incidents: Incident[]; backend: IndexBackend }> {
   const [venue, local] = await Promise.all([loadVenue(), listIncidents()]);
-  if (process.env.INDEX_BACKEND === "vast") {
+  if (indexBackend() === "vast") {
     try {
       // VAST applies the filters server-side; re-applying locally only sorts.
       return { incidents: applyFilters(await retrieveFromVast(filters), filters, venue.cameras), backend: "vast" };

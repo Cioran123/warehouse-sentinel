@@ -63,8 +63,9 @@ linearly interpolated across them (`"interpolated": true`). Without those weight
 Built for the VAST Builders Challenge, where VAST provides the storage, database, and video
 pipeline, NVIDIA provides the models, and CoreWeave runs them (plus W&B, a CoreWeave company,
 for tracing and LLM inference). Status below is honest: **used** means it runs in this repo
-today, **wired** means the code path exists but has only run against the challenge VM (or not
-yet on this footage), **planned** means it is designed in but not built.
+today, **wired** means the code path is built, on by default, and switches on when the
+challenge VM's endpoints are reachable, but has not run end to end from outside the VM,
+**planned** means it is designed in but not built.
 
 ```
                        VAST Builders Challenge stack (team VM)
@@ -87,7 +88,7 @@ yet on this footage), **planned** means it is designed in but not built.
 
 | Piece | How it is (supposed to be) used | Status |
 |---|---|---|
-| **Cosmos Reason** (`nvidia/cosmos3-reason` on the challenge server, `nvidia/cosmos-reason2-8b` on build.nvidia.com) | The verifier. `pipeline/verify.py` sends each candidate's annotated clip (subject boxes and restricted zones drawn on) as a base64 `video_url` to an OpenAI-compatible endpoint with an event-specific prompt, and gets back keep / drop / unclear plus observable evidence. Only kept incidents count as "Verified" in the app. | **Wired.** Ran against the Builders Challenge server in the stadium version of this pipeline; on the warehouse clips it needs the VM (`SENTINEL_VERIFIER=cosmos`), so incidents here are still "Unverified". Claude on sampled frames is the fallback. |
+| **Cosmos Reason** (`nvidia/cosmos3-nano-reasoner` on the challenge's CoreWeave server, `nvidia/cosmos-reason2-8b` on build.nvidia.com) | The verifier. `pipeline/verify.py` sends each candidate's annotated clip (subject boxes and restricted zones drawn on) as a base64 `video_url` to an OpenAI-compatible endpoint with an event-specific prompt, and gets back keep / drop / unclear plus observable evidence. Only kept incidents count as "Verified" in the app. The live webcam server sends its clips the same way. | **Used.** All three warehouse incidents and the live webcam incidents were verified by Cosmos (`run_all.py --verifier cosmos`). For the hard-hat clip its evidence largely restates the tracker's signals, so treat that verdict as weaker. Claude on sampled frames is the fallback. |
 | **Cosmos Embed1** (`COSMOS_EMBED1_URL`) | Embed every kept incident clip and its evidence text, store the 256-d vectors next to the incident rows in VastDB, and answer "show me more like this" and free-text assistant queries by vector search instead of keyword rules. | **Planned.** |
 | **YOLO11 endpoint** (`YOLO_URL`) | Offload person detection to the hosted model on the VM instead of running Ultralytics locally. | **Planned.** Detection runs locally today: YOLO26m + ByteTrack for people, YOLO-World for forklifts and pallet jacks, YOLO-pose, and CLIP for the hard-hat cue. |
 | **Canary-1B** (`CANARY_1B_URL`) | Speech-to-text for the assistant ("voice ask") and any audio on camera feeds. | **Planned**, not started; the SDG clips have no audio. |
@@ -97,27 +98,36 @@ yet on this footage), **planned** means it is designed in but not built.
 
 | Piece | How it is (supposed to be) used | Status |
 |---|---|---|
-| **CoreWeave GPUs** | Host the NVIDIA endpoints above; the pipeline only talks to them over HTTP, with `GPU_BEARER_TOKEN`. | **Wired** through Cosmos Reason. |
+| **CoreWeave GPUs** | Host the NVIDIA endpoints above; the pipeline only talks to them over HTTP, with `GPU_BEARER_TOKEN`. | **Used** through Cosmos Reason. |
 | **W&B Weave tracing** | `pipeline/tracing.py` and `src/app/lib/weave.ts` trace detection, candidate generation, verification, search, chat, and clip Q&A as Weave ops in the team project. | **Used.** |
-| **W&B Weave evaluation** | `pipeline/evaluate.py` scores the ledger against ground truth (scenarios surfaced, verifier keep rate, temporal IoU, event-type match, false positives on normal footage) and logs a `weave.Evaluation`, so prompt v1 vs v2 runs can be compared. | **Used.** Current run: 100% surfaced, 100% type match, 0% false positives on the normal camera. |
+| **W&B Weave evaluation** | `pipeline/evaluate.py` scores the ledger against ground truth (scenarios surfaced, verifier keep rate, temporal IoU, event-type match, false positives on normal footage) and logs a `weave.Evaluation`, so prompt v1 vs v2 runs can be compared. | **Used.** Current run with Cosmos: 100% surfaced, 100% kept, 100% type match, 0% false positives on the normal camera. |
 | **W&B serverless inference** (`WANDB_API_KEY`) | Replace Claude for the assistant's grounded replies, clip Q&A, and query parsing, so every model call stays on the challenge stack. | **Planned.** Claude is used today when `ANTHROPIC_API_KEY` is set, keyword rules otherwise. |
 
 ### VAST
 
-| Piece | How it is (supposed to be) used | Status |
-|---|---|---|
-| **VSS corpus (DataEngine, pre-ingested)** | Source of the footage: ~178 SDG warehouse clips already segmented, captioned by Cosmos, and indexed. Re-ingesting with the `warehouse` scenario (forklift near person, hard hats, walkway obstructions) would make VSS's own search find candidate clips to feed this pipeline. | Footage **used** (clips taken from the VSS archive); re-ingest **planned**. |
-| **VAST S3** | `pipeline/vast_fetch.py` lists and downloads warehouse segments from the team's segments bucket into `footage/<camera>/`; `pipeline/vast_sync.py` uploads assembled videos and evidence clips to `warehouse-sentinel-media`. | **Wired**; the endpoint only resolves from the VM. |
-| **VAST DataBase** | `vast_sync.py` (re)creates `cameras` and `incidents` tables in schema `warehouse_sentinel` (kept out of `vss-schema`); `pipeline/vast_search.py` serves filtered search with predicates pushed down to VastDB, and the app uses it when `INDEX_BACKEND=vast` (falls back to the local ledger if unreachable). | **Wired**; same code path ran in the stadium version, needs the VM here. |
+VAST is the project's system of record whenever the team cluster is reachable; every path falls
+back to local files when it is not (the S3 / VastDB endpoint resolves from the challenge VM,
+not from an outside laptop). The header's **VAST** chip and `npm run doctor` show which mode
+is live.
+
+| Piece | How it is used | Code | Status |
+|---|---|---|---|
+| **VSS corpus** (VAST DataEngine, pre-ingested) | Source of the footage: ~178 SDG warehouse clips segmented, captioned by Cosmos3-Reason, embedded with Cosmos-Embed1, and indexed in VastDB `vss-collection`. | `footage/` came from the VSS archive | **Used** |
+| **VAST S3, segments bucket** | Lists and downloads warehouse segments into `footage/<camera>/`. | `pipeline/vast_fetch.py` | **Wired** (VM) |
+| **VAST S3, media bucket** | Every run uploads the assembled camera videos and annotated evidence clips; the app's video and clip routes stream them from VAST through presigned URLs, falling back to local files. | `pipeline/vast_sync.py`, `src/app/lib/vast.ts`, `src/app/api/cameras/[id]/video`, `src/app/api/clips/[id]` | **Wired** (VM) |
+| **VAST DataBase** | Schema `warehouse_sentinel` (kept out of `vss-schema`) with three tables: `cameras`, `incidents` (the verified ledger), and `detections` (every tracked person, vehicle, and robot per frame, with class and hard-hat cue). `run_all.py` rewrites them at the end of every run. | `pipeline/vast.py`, `pipeline/vast_sync.py`, `pipeline/run_all.py` | **Wired** (VM) |
+| **VastDB incident search** | The assistant's and the alert feed's incident queries run against VastDB with predicates pushed down (`vast_search.py`); this is the default whenever VAST is configured (`INDEX_BACKEND=local` opts out). | `pipeline/vast_search.py`, `src/app/lib/search.ts` | **Wired** (VM) |
+| **VSS archive search** | Each incident's drawer shows "Similar moments in the VAST archive": the incident description goes to VSS hybrid search (`POST /api/v1/search`), and hits play back from the segments bucket through a server-side proxy (`/api/v1/videos/stream`). | `src/app/lib/vss.ts`, `src/app/api/vss/*`, `src/app/components/ArchiveMatches.tsx` | **Wired** (VM, needs `INGRESS_URL` + team login) |
+| **VSS re-ingest** | Re-run DataEngine on the warehouse pack with the `warehouse` scenario so VSS captions name forklifts, hard hats, and walkways. | VAST Builders `ingest/reingest-videos` skill | **Planned** |
 
 On the VM, `/config/<team>.config` is read automatically (`pipeline/builders.py`), which fills
 `COSMOS_BASE_URL`, `NVIDIA_API_KEY`, `VAST_*`, and `WEAVE_PROJECT`, so the full stack is:
 
 ```bash
 python pipeline/vast_fetch.py --camera WH_CAM_01 --limit 6 && python pipeline/assemble.py
-SENTINEL_VERIFIER=cosmos npm run pipeline -- --redetect
-npm run eval && python pipeline/vast_sync.py
-python pipeline/vast_search.py & INDEX_BACKEND=vast npm run dev
+SENTINEL_VERIFIER=cosmos npm run pipeline -- --redetect   # ends by syncing media + tables to VAST
+npm run eval
+python pipeline/vast_search.py & npm run dev               # search and media now come from VAST
 ```
 
 ## Setup

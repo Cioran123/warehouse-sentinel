@@ -21,35 +21,15 @@ The S3 endpoint is usually only reachable from the challenge VM.
 from __future__ import annotations
 
 import argparse
-import os
 import re
 from collections import Counter
 
-from schema import ROOT, load_config, load_env
+import vast
+from schema import ROOT, load_config
 
 FOOTAGE_DIR = ROOT / "footage"
 DEFAULT_MATCH = "sdg_warehouse,warehouse"
 VIDEO_EXT = (".mp4",)
-
-
-def env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        raise SystemExit(f"{name} is not set (see pipeline/vast_fetch.py docstring)")
-    return value
-
-
-def s3_client():
-    import boto3
-    from botocore.config import Config
-
-    return boto3.client(
-        "s3",
-        endpoint_url=env("VAST_S3_ENDPOINT"),
-        aws_access_key_id=env("VAST_ACCESS_KEY"),
-        aws_secret_access_key=env("VAST_SECRET_KEY"),
-        config=Config(connect_timeout=10, read_timeout=60, retries={"max_attempts": 2}),
-    )
 
 
 def list_keys(s3, bucket: str, prefix: str, match: list[str]) -> list[tuple[str, int]]:
@@ -78,11 +58,12 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=6)
     ap.add_argument("--clean", action="store_true", help="remove the camera's existing footage first")
     args = ap.parse_args()
-    load_env()
-
-    bucket = args.bucket or env("S3_SEGMENTS_BUCKET")
+    vast.require()
+    bucket = args.bucket or vast.segments_bucket()
+    if not bucket:
+        raise SystemExit("S3_SEGMENTS_BUCKET is not set; pass --bucket (e.g. team-14-vss-chunks-segments)")
     match = [m.strip().lower() for m in args.match.split(",") if m.strip()]
-    s3 = s3_client()
+    s3 = vast.s3_client()
     keys = list_keys(s3, bucket, args.prefix, match)
     print(f"[vast_fetch] {len(keys)} clips in s3://{bucket}/{args.prefix} matching {match or 'anything'}")
 

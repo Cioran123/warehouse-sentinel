@@ -1,12 +1,16 @@
 """Run the full pipeline and write the incident ledger (storage/db/incidents.json).
 
-    detect (YOLO + ByteTrack) -> candidates -> verify (Cosmos / Claude) -> ledger
+    detect (YOLO + ByteTrack) -> candidates -> verify (Cosmos / Claude) -> ledger -> VAST
+
+When VAST is configured, the run ends by mirroring media, incidents, and detections into
+VAST S3 and VAST DataBase (vast_sync.sync()); the local ledger is kept either way.
 
 Usage:
     python pipeline/run_all.py                    # all cameras; reuses existing tracks
-    python pipeline/run_all.py --camera CAM_04
+    python pipeline/run_all.py --camera WH_CAM_02
     python pipeline/run_all.py --redetect         # re-run YOLO even if tracks exist
     python pipeline/run_all.py --verifier none    # skip model verification
+    python pipeline/run_all.py --no-vast          # do not sync to VAST
 """
 
 from __future__ import annotations
@@ -20,9 +24,13 @@ from candidates import generate_candidates
 from detect import DEFAULT_MODEL, detect_camera
 from schema import CLIPS_DIR, VIDEOS_DIR, Candidate, Incident, load_config, read_ledger, tracks_path, write_ledger
 from tracing import op
+import vast
+import vast_sync
 from verify import prompt_version, resolve_backend, verify_candidate
 
 STATUS = {"keep": "kept", "drop": "rejected", "unclear": "candidate"}
+# A possible person down needs someone on the way now, whatever severity the verifier gives it.
+ALWAYS_HIGH = {"person_down_or_inactivity"}
 
 
 def to_incident(c: Candidate, cam: dict, venue_id: str, incident_id: str, verdict) -> Incident:
@@ -37,7 +45,7 @@ def to_incident(c: Candidate, cam: dict, venue_id: str, incident_id: str, verdic
         eventType=c.event_type,
         startSec=c.start_sec,
         endSec=c.end_sec,
-        priority=verdict.severity if status == "kept" else c.priority,
+        priority="high" if c.event_type in ALWAYS_HIGH else verdict.severity if status == "kept" else c.priority,
         observations=observations,
         signalNotes=list(c.observations),
         evidenceClipUrl=f"/api/clips/{incident_id}",
@@ -82,6 +90,7 @@ def main() -> None:
     ap.add_argument("--redetect", action="store_true")
     ap.add_argument("--verifier", choices=["auto", "cosmos", "claude", "none"])
     ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--no-vast", action="store_true", help="skip mirroring media and tables into VAST")
     args = ap.parse_args()
     if args.verifier:
         os.environ["SENTINEL_VERIFIER"] = args.verifier
@@ -107,6 +116,16 @@ def main() -> None:
     write_ledger(merged)
     print(f"[run_all] ledger: {len(merged)} incidents "
           f"({sum(i.verificationStatus == 'kept' for i in merged)} kept)")
+
+    if args.no_vast:
+        return
+    if not vast.configured():
+        print("[run_all] VAST not configured; ledger stays local (see pipeline/vast.py)")
+        return
+    try:
+        vast_sync.sync()
+    except Exception as err:
+        print(f"[run_all] VAST sync failed, ledger stays local: {type(err).__name__}: {err}")
 
 
 if __name__ == "__main__":

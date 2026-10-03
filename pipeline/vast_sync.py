@@ -1,18 +1,12 @@
-"""Mirror the corpus and incident ledger into VAST Data.
+"""Mirror the corpus, the detections, and the incident ledger into VAST Data.
 
-  1. Upload camera videos and evidence clips to a VAST S3 bucket (boto3, custom endpoint).
-  2. (Re)create `cameras` and `incidents` tables in VAST DataBase (vastdb SDK) and insert
-     the ledger, so search can run against VAST via pipeline/vast_search.py.
+  1. Upload assembled camera videos and annotated evidence clips to the VAST S3 media bucket;
+     the app streams them from there (src/app/lib/vast.ts).
+  2. (Re)create `cameras`, `incidents`, and `detections` tables in VAST DataBase (vastdb SDK),
+     schema `warehouse_sentinel`, so search runs against VAST via pipeline/vast_search.py and
+     every tracked person, vehicle, and robot is queryable per frame.
 
-Environment (from .env.local or the shell):
-  VAST_S3_ENDPOINT   e.g. http://vip-pool.example.vastdata.com
-  VAST_ACCESS_KEY / VAST_SECRET_KEY
-  VAST_MEDIA_BUCKET  S3 bucket for videos/clips (default: warehouse-sentinel-media)
-  VAST_DB_ENDPOINT   defaults to VAST_S3_ENDPOINT
-  VAST_DB_BUCKET     database bucket (default: sentinel-db)
-  VAST_DB_SCHEMA     schema name (default: warehouse_sentinel)
-
-Requires network access to a VAST cluster (provided by the sponsor at the event).
+run_all.py calls sync() at the end of every run when VAST is configured (see vast.py).
 
     python pipeline/vast_sync.py [--skip-media]
 """
@@ -21,9 +15,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 
-from schema import CLIPS_DIR, VIDEOS_DIR, load_config, load_env, read_ledger
+import vast
+from schema import CLIPS_DIR, VIDEOS_DIR, load_config, read_ledger, tracks_path
 
 INCIDENT_COLUMNS = [
     ("id", "string"), ("videoId", "string"), ("venueId", "string"), ("cameraId", "string"),
@@ -39,20 +33,19 @@ CAMERA_COLUMNS = [
     ("id", "string"), ("zone", "string"), ("zoneId", "string"), ("videoFile", "string"),
     ("mediaKey", "string"), ("durationSec", "float64"), ("sourceType", "string"), ("scenario", "string"),
 ]
+DETECTION_COLUMNS = [
+    ("cameraId", "string"), ("t", "float64"), ("trackId", "int64"),
+    # person | vehicle | robot
+    ("kind", "string"), ("cls", "string"), ("ppe", "string"), ("conf", "float64"),
+    ("x1", "float64"), ("y1", "float64"), ("x2", "float64"), ("y2", "float64"),
+]
 JSON_FIELDS = {"observations", "signalNotes", "signals", "trackIds"}
-
-
-def env(name: str, default: str | None = None) -> str:
-    value = os.environ.get(name, default)
-    if not value:
-        raise SystemExit(f"{name} is not set (see pipeline/vast_sync.py docstring)")
-    return value
 
 
 def arrow_schema(cols):
     import pyarrow as pa
 
-    types = {"string": pa.utf8(), "float64": pa.float64(), "bool": pa.bool_()}
+    types = {"string": pa.utf8(), "float64": pa.float64(), "int64": pa.int64(), "bool": pa.bool_()}
     return pa.schema([(name, types[t]) for name, t in cols])
 
 
@@ -64,10 +57,10 @@ def upload_media(s3, bucket: str, config: dict) -> None:
     for cam in config["cameras"]:
         path = VIDEOS_DIR / cam["videoFile"]
         if path.exists():
-            s3.upload_file(str(path), bucket, f"videos/{cam['videoFile']}", ExtraArgs={"ContentType": "video/mp4"})
-            print(f"[vast] uploaded videos/{cam['videoFile']}")
+            s3.upload_file(str(path), bucket, vast.video_key(cam["videoFile"]), ExtraArgs={"ContentType": "video/mp4"})
+            print(f"[vast] uploaded {vast.video_key(cam['videoFile'])}")
     for clip in sorted(CLIPS_DIR.glob("*.mp4")):
-        s3.upload_file(str(clip), bucket, f"clips/{clip.name}", ExtraArgs={"ContentType": "video/mp4"})
+        s3.upload_file(str(clip), bucket, vast.clip_key(clip.stem), ExtraArgs={"ContentType": "video/mp4"})
     print(f"[vast] uploaded {len(list(CLIPS_DIR.glob('*.mp4')))} clips")
 
 
@@ -78,38 +71,48 @@ def recreate_table(schema, name: str, columns):
     return schema.create_table(name, arrow_schema(columns))
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--skip-media", action="store_true")
-    args = ap.parse_args()
-    load_env()
+def detection_rows(config: dict) -> list[dict]:
+    """One row per tracked box per sampled frame, from storage/pipeline/<camera>.tracks.json."""
+    rows = []
+    for cam in config["cameras"]:
+        path = tracks_path(cam["id"])
+        if not path.exists():
+            continue
+        data = json.loads(path.read_text())
+        for f in data["frames"]:
+            groups = [("person", f["boxes"]), ("vehicle", f.get("vehicles", [])), ("robot", f.get("robots", []))]
+            for kind, boxes in groups:
+                for b in boxes:
+                    x1, y1, x2, y2 = b["box"]
+                    rows.append({
+                        "cameraId": cam["id"], "t": float(f["t"]), "trackId": int(b["id"]), "kind": kind,
+                        "cls": b.get("cls", kind), "ppe": b.get("ppe", ""), "conf": float(b.get("conf", 0.0)),
+                        "x1": float(x1), "y1": float(y1), "x2": float(x2), "y2": float(y2),
+                    })
+    return rows
 
+
+def sync(skip_media: bool = False) -> dict:
+    """Upload media and rewrite the project's VastDB tables. Returns row counts."""
+    import pyarrow as pa
+
+    vast.require()
     config = load_config()
     ledger = read_ledger()
     zone_of = {c["id"]: c["zoneId"] for c in config["cameras"]}
-    s3_endpoint = env("VAST_S3_ENDPOINT")
-    access, secret = env("VAST_ACCESS_KEY"), env("VAST_SECRET_KEY")
-    media_bucket = os.environ.get("VAST_MEDIA_BUCKET", "warehouse-sentinel-media")
+    media_bucket = vast.media_bucket()
 
-    if not args.skip_media:
-        import boto3
+    if not skip_media:
+        upload_media(vast.s3_client(), media_bucket, config)
 
-        s3 = boto3.client("s3", endpoint_url=s3_endpoint, aws_access_key_id=access, aws_secret_access_key=secret)
-        upload_media(s3, media_bucket, config)
-
-    import pyarrow as pa
-    import vastdb
-
-    session = vastdb.connect(endpoint=os.environ.get("VAST_DB_ENDPOINT", s3_endpoint), access=access, secret=secret)
-    with session.transaction() as tx:
-        bucket = tx.bucket(os.environ.get("VAST_DB_BUCKET", "sentinel-db"))
-        schema_name = os.environ.get("VAST_DB_SCHEMA", "warehouse_sentinel")
-        schema = bucket.schema(schema_name, fail_if_missing=False) or bucket.create_schema(schema_name)
+    detections = detection_rows(config)
+    with vast.db_session().transaction() as tx:
+        schema = vast.schema(tx, create=True)
 
         cameras = recreate_table(schema, "cameras", CAMERA_COLUMNS)
         cam_rows = [{
             **{k: c.get(k) for k, _ in CAMERA_COLUMNS},
-            "mediaKey": f"s3://{media_bucket}/videos/{c['videoFile']}",
+            "mediaKey": f"s3://{media_bucket}/{vast.video_key(c['videoFile'])}",
             "durationSec": float(c["durationSec"]),
         } for c in config["cameras"]]
         cameras.insert(pa.Table.from_pylist(cam_rows, schema=arrow_schema(CAMERA_COLUMNS)))
@@ -122,11 +125,25 @@ def main() -> None:
                 value = inc.get(name)
                 row[name] = json.dumps(value) if name in JSON_FIELDS else value
             row["zoneId"] = zone_of.get(inc["cameraId"], "")
-            row["mediaKey"] = f"s3://{media_bucket}/clips/{inc['id']}.mp4"
+            row["mediaKey"] = f"s3://{media_bucket}/{vast.clip_key(inc['id'])}"
             inc_rows.append(row)
         if inc_rows:
             incidents.insert(pa.Table.from_pylist(inc_rows, schema=arrow_schema(INCIDENT_COLUMNS)))
-    print(f"[vast] wrote {len(cam_rows)} cameras and {len(inc_rows)} incidents to {schema_name}")
+
+        table = recreate_table(schema, "detections", DETECTION_COLUMNS)
+        if detections:
+            table.insert(pa.Table.from_pylist(detections, schema=arrow_schema(DETECTION_COLUMNS)))
+    counts = {"cameras": len(cam_rows), "incidents": len(inc_rows), "detections": len(detections)}
+    print(f"[vast] wrote {counts['cameras']} cameras, {counts['incidents']} incidents, and "
+          f"{counts['detections']} detections to {vast.db_bucket()}/{vast.schema_name()}")
+    return counts
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--skip-media", action="store_true")
+    args = ap.parse_args()
+    sync(skip_media=args.skip_media)
 
 
 if __name__ == "__main__":

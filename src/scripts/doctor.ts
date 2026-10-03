@@ -146,6 +146,16 @@ async function checkOptionalEnv(name: string, fallback: string): Promise<CheckRe
   return pass(`${name} not set`, `using fallback: ${fallback}`);
 }
 
+/** Is the VAST S3 media bucket actually answering? (VAST DataBase uses the same endpoint.) */
+async function checkVast(): Promise<CheckResult> {
+  await loadEnv();
+  const { vastStatus } = await import("../app/lib/vast");
+  const st = await vastStatus();
+  if (!st.configured) return pass("VAST not configured", "media and tables stay local");
+  if (st.reachable) return pass("VAST reachable", `media ${st.mediaBucket}, tables ${st.schema}, index ${st.index}`);
+  return pass("VAST configured but not reachable", "falling back to local media and ledger (the endpoint usually resolves only on the VM)");
+}
+
 async function main(): Promise<void> {
   const root = process.cwd();
   const configPath = path.join(root, "pipeline", "config", "cameras.json");
@@ -184,8 +194,14 @@ async function main(): Promise<void> {
   ));
   results.push(await checkOptionalAny(
     ["VAST_S3_ENDPOINT", "S3_ENDPOINT"],
-    "VAST endpoint configured",
+    "VAST endpoint",
     "search stays on the local ledger",
+  ));
+  results.push(await checkVast());
+  results.push(await checkOptionalAny(
+    ["VSS_URL", "INGRESS_URL"],
+    "VAST VSS archive",
+    "no similar-moment search across the archive",
   ));
 
   const ok = render(results);

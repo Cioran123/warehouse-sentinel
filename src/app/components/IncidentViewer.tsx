@@ -11,6 +11,7 @@ import {
   type TrackFrame,
 } from "@/app/lib/types";
 import { PriorityBadge, SourceBadge, VerificationBadge } from "./Badges";
+import ArchiveMatches from "./ArchiveMatches";
 import ClipChat from "./ClipChat";
 import EventTimeline, { type TimelineBand } from "./EventTimeline";
 import TrackOverlay, { nearestFrame } from "./TrackOverlay";
@@ -87,6 +88,8 @@ function Evidence({ incident, camera, venueName, live }: Pick<Props, "incident" 
           <video src={incident.evidenceClipUrl} controls muted preload="metadata" className="w-full rounded-lg" />
         </section>
       )}
+
+      <ArchiveMatches query={`${EVENT_LABEL[incident.eventType]} in a warehouse. ${(incident.observations[0] ?? incident.signalNotes?.[0] ?? "").slice(0, 200)}`} />
 
       <section className="rounded-xl border border-line bg-surface p-4">
         <h2 className="mb-2 text-[13px] font-semibold text-ink">Source</h2>

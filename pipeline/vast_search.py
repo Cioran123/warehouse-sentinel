@@ -13,25 +13,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from functools import reduce
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from schema import load_env
-from vast_sync import JSON_FIELDS, env
+import vast
+from vast_sync import JSON_FIELDS
 
 FILTER_COLUMNS = {"eventTypes": "eventType", "zoneIds": "zoneId", "priorities": "priority", "statuses": "verificationStatus"}
-
-
-def connect():
-    import vastdb
-
-    load_env()
-    return vastdb.connect(
-        endpoint=os.environ.get("VAST_DB_ENDPOINT", env("VAST_S3_ENDPOINT")),
-        access=env("VAST_ACCESS_KEY"),
-        secret=env("VAST_SECRET_KEY"),
-    )
 
 
 def build_predicate(filters: dict):
@@ -47,9 +35,7 @@ def build_predicate(filters: dict):
 
 def search(session, filters: dict) -> list[dict]:
     with session.transaction() as tx:
-        table = (tx.bucket(os.environ.get("VAST_DB_BUCKET", "sentinel-db"))
-                 .schema(os.environ.get("VAST_DB_SCHEMA", "warehouse_sentinel"))
-                 .table("incidents"))
+        table = vast.schema(tx).table("incidents")
         predicate = build_predicate(filters)
         reader = table.select(predicate=predicate) if predicate is not None else table.select()
         rows = reader.read_all().to_pylist()
@@ -64,10 +50,10 @@ def search(session, filters: dict) -> list[dict]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    # 8765 is the webcam live server's port
+    # 8775 is the webcam live server's port
     ap.add_argument("--port", type=int, default=8766)
     args = ap.parse_args()
-    session = connect()
+    session = vast.db_session()
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):  # noqa: N802
