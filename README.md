@@ -29,6 +29,9 @@ checks were replaced with warehouse ones.
 - **Live webcam tile.** Labels your own webcam in real time (people, pose, posture), runs the
   restricted-zone and person-down checks on a rolling window, and sends each candidate clip to
   Cosmos for a keep/drop verdict, which lands in the same incident ledger.
+- **Full screen.** Every camera tile and the webcam tile has a full-screen button (top-right on
+  hover) that letterboxes the footage with its overlay; the header button, or **F**, puts the whole
+  app in full screen for a demo. Esc exits.
 - **Alerts.** Incidents pop into a strip as each camera's playback reaches them, high priority
   first, with Review and Dismiss.
 - **Assistant.** Ask about the whole site in plain language ("Show every forklift near miss",

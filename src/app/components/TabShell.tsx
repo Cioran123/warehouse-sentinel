@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useFullscreen } from "@/app/lib/ui/useFullscreen";
+import FullscreenButton from "./FullscreenButton";
 import { TABS } from "@/app/tab-config";
 
 /** Arrow keys belong to whatever has focus when it is a field, slider, media element, or open dialog. */
@@ -24,8 +26,16 @@ export default function TabShell({ venueName, chips = [] }: { venueName: string;
   const router = useRouter();
   const activeIndex = TABS.findIndex((t) => pathname === t.path || pathname.startsWith(`${t.path}/`));
 
+  const fullscreen = useFullscreen();
+  const toggleFullscreen = fullscreen.toggle;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey && !e.altKey && !arrowsTaken(e.target)) {
+        e.preventDefault();
+        void toggleFullscreen();
+        return;
+      }
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || arrowsTaken(e.target)) return;
       e.preventDefault();
@@ -35,7 +45,7 @@ export default function TabShell({ venueName, chips = [] }: { venueName: string;
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeIndex, router]);
+  }, [activeIndex, router, toggleFullscreen]);
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-6 border-b border-line bg-surface px-5">
@@ -75,6 +85,12 @@ export default function TabShell({ venueName, chips = [] }: { venueName: string;
             ))}
           </dl>
         )}
+        <FullscreenButton
+          active={fullscreen.active}
+          onToggle={fullscreen.toggle}
+          label="whole screen (F)"
+          className="text-ink-3 hover:bg-hover hover:text-ink"
+        />
         <span className="group relative">
           <button
             type="button"

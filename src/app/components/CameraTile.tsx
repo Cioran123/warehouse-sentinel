@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CameraStatus, IndexStatus } from "@/app/lib/cameraStatus";
 import { formatSpan } from "@/app/lib/format";
 import { EVENT_LABEL, PRIORITY_COLOR, type CameraTracks, type Incident } from "@/app/lib/types";
 import { VerificationBadge } from "./Badges";
 import IncidentLink from "./IncidentLink";
+import { useFullscreen } from "@/app/lib/ui/useFullscreen";
 import { forgetVideo, reportVideoTime } from "@/app/lib/ui/videoClock";
+import FullscreenButton from "./FullscreenButton";
 import TrackOverlay, { nearestFrame } from "./TrackOverlay";
 
 /** Only states that need the supervisor's attention get a note; indexed cameras say nothing. */
@@ -50,6 +52,8 @@ export default function CameraTile({ status, showOverlay, active, onTime, select
   }, [camera.id, hasVideo]);
 
   useEffect(() => () => forgetVideo(camera.id), [camera.id]);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const fullscreen = useFullscreen(frameRef);
 
   const frame = tracks ? nearestFrame(tracks.frames, time) : null;
   const top = active[0];
@@ -62,10 +66,11 @@ export default function CameraTile({ status, showOverlay, active, onTime, select
       }`}
       style={pulseColor ? ({ "--pulse": pulseColor } as React.CSSProperties) : undefined}
     >
+      <div ref={frameRef} className="fs-frame">
       <div
-        className={`relative aspect-video bg-footage ${onSelectZone ? "cursor-pointer" : ""}`}
-        onClick={onSelectZone}
-        title={onSelectZone ? `${selected ? "Clear focus on" : "Focus"} ${camera.zone}` : undefined}
+        className={`fs-stage group relative aspect-video bg-footage ${onSelectZone && !fullscreen.active ? "cursor-pointer" : ""}`}
+        onClick={fullscreen.active ? undefined : onSelectZone}
+        title={onSelectZone && !fullscreen.active ? `${selected ? "Clear focus on" : "Focus"} ${camera.zone}` : undefined}
       >
         {!hasVideo ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
@@ -114,6 +119,22 @@ export default function CameraTile({ status, showOverlay, active, onTime, select
             <span className="text-white/75">Review →</span>
           </IncidentLink>
         )}
+        <div className="absolute right-2 top-2 flex items-center gap-2">
+          {fullscreen.active && (
+            <span className="rounded-md bg-black/60 px-2 py-1 text-[12px] font-medium text-white/90">
+              {camera.zone} <span className="font-mono text-white/60">{camera.id}</span>
+            </span>
+          )}
+          {hasVideo && (
+            <FullscreenButton
+              active={fullscreen.active}
+              onToggle={fullscreen.toggle}
+              label={camera.zone}
+              className={`bg-black/60 text-white/90 hover:bg-black/80 ${fullscreen.active ? "" : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"}`}
+            />
+          )}
+        </div>
+      </div>
       </div>
       <div className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2.5">
         <div className="flex items-baseline justify-between gap-2">

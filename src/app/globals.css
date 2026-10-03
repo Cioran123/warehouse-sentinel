@@ -82,3 +82,20 @@ body {
 }
 
 input[type="checkbox"] { accent-color: var(--color-accent); }
+
+/* Full-screen camera tiles: letterbox the stage at the footage's aspect so overlays stay aligned. */
+.fs-frame:fullscreen,
+.fs-frame:-webkit-full-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+}
+.fs-frame:fullscreen > .fs-stage,
+.fs-frame:-webkit-full-screen > .fs-stage {
+  width: min(100vw, calc(100vh * var(--fs-ar, 1.7778)));
+  height: auto;
+  max-height: 100vh;
+}

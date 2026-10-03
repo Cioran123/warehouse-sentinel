@@ -11,6 +11,8 @@ import {
   type TrackBox,
   type TrackFrame,
 } from "@/app/lib/types";
+import { useFullscreen } from "@/app/lib/ui/useFullscreen";
+import FullscreenButton from "./FullscreenButton";
 import IncidentLink from "./IncidentLink";
 import TrackOverlay from "./TrackOverlay";
 
@@ -59,6 +61,8 @@ interface Props {
  * runs the four candidate checks and sends each new candidate's clip to the verifier. */
 export default function WebcamTile({ showOverlay, onLiveIncident }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const fullscreen = useFullscreen(frameRef);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const runningRef = useRef(false);
@@ -218,11 +222,13 @@ export default function WebcamTile({ showOverlay, onLiveIncident }: Props) {
   };
   const verifier = VERIFIER_NAME[health.verifier ?? ""] ?? health.verifier ?? "Verifier";
   const recent = [...events].reverse().slice(0, 3);
+  const latestEvent = recent[0];
 
   return (
     <div className={`flex flex-col overflow-hidden rounded-xl border bg-surface ${down.length ? "tile-alert" : "border-line"}`}
       style={down.length ? ({ "--pulse": "#d03b2f" } as React.CSSProperties) : undefined}>
-      <div className="relative bg-footage" style={{ aspectRatio: String(aspect) }}>
+      <div ref={frameRef} className="fs-frame" style={{ "--fs-ar": String(aspect) } as React.CSSProperties}>
+      <div className="fs-stage group relative bg-footage" style={{ aspectRatio: String(aspect) }}>
         <video ref={videoRef} className={`h-full w-full object-fill ${active ? "" : "hidden"}`}
           style={mirrored ? { transform: "scaleX(-1)" } : undefined} muted playsInline />
         {!active && (
@@ -246,9 +252,25 @@ export default function WebcamTile({ showOverlay, onLiveIncident }: Props) {
             {status === "live" ? ` · ${fps.toFixed(1)} fps` : ""}
           </div>
         )}
-        {active && (
-          <div className="absolute right-2 top-2 flex items-center gap-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a4e]" /> Live
+        <div className="absolute right-2 top-2 flex items-center gap-2">
+          {active && (
+            <div className="flex items-center gap-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ff5a4e]" /> Live
+            </div>
+          )}
+          <FullscreenButton
+            active={fullscreen.active}
+            onToggle={fullscreen.toggle}
+            label="live webcam"
+            className={`bg-black/60 text-white/90 hover:bg-black/80 ${fullscreen.active ? "" : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"}`}
+          />
+        </div>
+        {fullscreen.active && latestEvent && (
+          <div className="absolute bottom-2 left-2 flex items-center gap-2 rounded-md bg-black/70 px-2.5 py-1.5 text-[13px] text-white">
+            <span>{EVENT_LABEL[latestEvent.eventType]}</span>
+            <span className="font-semibold" style={{ color: STATUS_STYLE[latestEvent.status].color }}>
+              {STATUS_STYLE[latestEvent.status].text(verifier)}
+            </span>
           </div>
         )}
         {down.length > 0 && (
@@ -256,6 +278,7 @@ export default function WebcamTile({ showOverlay, onLiveIncident }: Props) {
             Possible person down · {down.map((id) => `#${id}`).join(", ")}
           </div>
         )}
+      </div>
       </div>
       <div className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2.5 text-[12px]">
         <div className="flex items-baseline justify-between gap-2">
