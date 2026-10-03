@@ -9,6 +9,10 @@ result to the incident ledger. Labeling never waits on the verifier.
 Times are seconds since the webcam session started. The live labeler runs a pose model,
 which detects people only, so the near-miss check has no vehicles to work with here.
 
+Person down comes from the labeler's per-person posture instead of candidates.py's box-shape
+checks: a webcam usually frames head and shoulders, a box wider than tall even when sitting
+up, so those checks would flag anyone sitting still in front of it.
+
 The webcam's zone, restricted polygons (normalized, unmirrored frame coordinates), and
 threshold overrides are in pipeline/config/live.json.
 """
@@ -16,6 +20,7 @@ threshold overrides are in pipeline/config/live.json.
 from __future__ import annotations
 
 import json
+import math
 import queue
 import threading
 import time
@@ -24,8 +29,7 @@ from collections import deque
 import cv2
 import numpy as np
 
-from candidates import (DEFAULTS, check_inactivity, check_lying, check_near_miss, check_restricted_zone,
-                        merge)
+from candidates import DEFAULTS, _by_track, _runs, _ts, _window, check_near_miss, check_restricted_zone, merge
 from media import VideoWriter
 from run_all import STATUS, to_incident
 from schema import CLIPS_DIR, ROOT, Candidate, Incident, load_config, read_ledger, write_ledger
@@ -39,6 +43,9 @@ POST_SEC = 3.0
 # A same-type candidate starting this soon after the last one ended is the same event.
 COOLDOWN_SEC = 8.0
 CLIP_HEIGHT = 480
+# The verifier samples clips at COSMOS_FPS (4) and rejects anything slower, while the webcam
+# loop often labels only 1-2 frames a second, so clips repeat frames up to this rate.
+CLIP_FPS = 10.0
 MAX_EVENTS = 8
 
 _ledger_lock = threading.Lock()
@@ -53,22 +60,50 @@ def load_live_camera() -> dict:
 
 
 def write_clip(frames: list[tuple[float, bytes]], out) -> float:
-    """Encode buffered JPEG frames as a browser-playable mp4 at the session's real frame rate."""
+    """Encode buffered JPEG frames as a browser-playable mp4 at CLIP_FPS, in real time: each
+    output frame shows the latest webcam frame at that moment."""
     first = cv2.imdecode(np.frombuffer(frames[0][1], np.uint8), cv2.IMREAD_COLOR)
     h, w = first.shape[:2]
     height = min(CLIP_HEIGHT, h) // 2 * 2
     width = round(w * height / h) // 2 * 2
-    span = frames[-1][0] - frames[0][0]
-    fps = min(30.0, max(1.0, (len(frames) - 1) / span)) if span > 0 else 5.0
-    writer = VideoWriter(out, width, height, fps)
+    t0, span = frames[0][0], frames[-1][0] - frames[0][0]
+    writer = VideoWriter(out, width, height, CLIP_FPS)
+    i, img = -1, None
     try:
-        for _, jpeg in frames:
-            img = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
+        for k in range(max(1, math.ceil(span * CLIP_FPS)) + 1):
+            t, prev = t0 + k / CLIP_FPS, i
+            while i + 1 < len(frames) and frames[i + 1][0] <= t + 1e-6:
+                i += 1
+            if i != prev:
+                decoded = cv2.imdecode(np.frombuffer(frames[i][1], np.uint8), cv2.IMREAD_COLOR)
+                if decoded is not None:
+                    img = cv2.resize(decoded, (width, height))
             if img is not None:
-                writer.write(cv2.resize(img, (width, height)))
+                writer.write(img)
     finally:
         writer.close()
     return span
+
+
+def check_posture_down(cam: dict, data: dict, th: dict) -> list[Candidate]:
+    """A tracked person whose live posture stays "down" for lying_min_sec."""
+    out = []
+    for tid, samples in _by_track(data["frames"]).items():
+        times = [t for t, _ in samples]
+        mask = [b.get("posture") == "down" for _, b in samples]
+        for start, end in _runs(mask, times, min_len=th["lying_min_sec"]):
+            s, e = _window(start, end, data["durationSec"], pre=2, post=2, max_len=th["max_clip_sec"])
+            out.append(Candidate(
+                camera_id=cam["id"], event_type="person_down_or_inactivity", start_sec=s, end_sec=e,
+                priority="high",
+                observations=[
+                    f"pose of tracked person #{tid} read as down from {_ts(start)} for {end - start:.1f}s "
+                    f"(head dropped toward the shoulder line, shoulders rolled, or torso near horizontal)",
+                ],
+                signals={"downSec": round(end - start, 2)},
+                track_ids=[tid],
+            ))
+    return out
 
 
 def append_incident(incident: Incident) -> None:
@@ -128,7 +163,7 @@ class LiveMonitor:
         fps = (len(rows) - 1) / (rows[-1]["t"] - rows[0]["t"])
         data = {"fps": fps, "durationSec": rows[-1]["t"], "frames": rows}
         found = (check_restricted_zone(self.cam, data, self.th) + check_near_miss(self.cam, data, self.th)
-                 + check_inactivity(self.cam, data, self.th) + check_lying(self.cam, data, self.th))
+                 + check_posture_down(self.cam, data, self.th))
         for c in merge(found, self.th["merge_gap_sec"]):
             if any(r.event_type == c.event_type and c.start_sec <= r.end_sec + COOLDOWN_SEC for r in self.recent):
                 continue

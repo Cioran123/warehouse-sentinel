@@ -14,7 +14,7 @@ import {
 import IncidentLink from "./IncidentLink";
 import TrackOverlay from "./TrackOverlay";
 
-const LIVE_URL = process.env.NEXT_PUBLIC_LIVE_URL ?? "http://localhost:8765";
+const LIVE_URL = process.env.NEXT_PUBLIC_LIVE_URL ?? "http://localhost:8775";
 // Frames are downscaled before upload; the server runs at imgsz 640 anyway.
 const SEND_WIDTH = 960;
 const JPEG_QUALITY = 0.7;

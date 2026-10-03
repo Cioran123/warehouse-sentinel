@@ -31,6 +31,8 @@ interface CommandState {
   activeByCamera: Record<string, Incident[]>;
   reportTime: (cameraId: string, t: number) => void;
   feed: FeedItem[];
+  /** Live webcam incidents have no playback, so they enter the feed as soon as they are verified. */
+  addLiveIncident: (incident: Incident) => void;
   dismissFeed: (id: string) => void;
   resetFeed: () => void;
   chatInputRef: RefObject<HTMLInputElement | null>;
@@ -105,6 +107,12 @@ export function CommandProvider({ incidents, initialZoneId = null, initialIncide
     [incidents],
   );
 
+  const addLiveIncident = useCallback((incident: Incident) => {
+    if (incident.verificationStatus === "rejected" || seen.current.has(incident.id) || dismissed.current.has(incident.id)) return;
+    seen.current.add(incident.id);
+    setFeed((f) => [{ incident, seenAt: Date.now() }, ...f]);
+  }, []);
+
   const dismissFeed = useCallback((id: string) => {
     dismissed.current.add(id);
     setFeed((f) => f.filter((x) => x.incident.id !== id));
@@ -128,11 +136,12 @@ export function CommandProvider({ incidents, initialZoneId = null, initialIncide
       activeByCamera,
       reportTime,
       feed,
+      addLiveIncident,
       dismissFeed,
       resetFeed,
       chatInputRef,
     }),
-    [selectedZoneId, selectZone, toggleZone, highlightZoneIds, openIncidentId, openIncident, activeByCamera, reportTime, feed, dismissFeed, resetFeed],
+    [selectedZoneId, selectZone, toggleZone, highlightZoneIds, openIncidentId, openIncident, activeByCamera, reportTime, feed, addLiveIncident, dismissFeed, resetFeed],
   );
 
   return <CommandContext.Provider value={value}>{children}</CommandContext.Provider>;

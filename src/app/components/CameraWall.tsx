@@ -1,17 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { CameraStatus } from "@/app/lib/cameraStatus";
+import type { Incident } from "@/app/lib/types";
 import { useCommand } from "@/app/lib/ui/commandStore";
 import CameraTile from "./CameraTile";
 import WebcamTile from "./WebcamTile";
 
 export default function CameraWall({ statuses }: { statuses: CameraStatus[] }) {
-  const { selectedZoneId, toggleZone, selectZone, highlightZoneIds, activeByCamera, reportTime } = useCommand();
+  const { selectedZoneId, toggleZone, selectZone, highlightZoneIds, activeByCamera, reportTime, addLiveIncident } = useCommand();
   const [showOverlay, setShowOverlay] = useState(true);
   const [focusOnly, setFocusOnly] = useState(false);
   const selected = statuses.find((s) => s.camera.zoneId === selectedZoneId);
+  const onLiveIncident = useCallback(
+    (id: string) => {
+      fetch(`/api/incidents/${encodeURIComponent(id)}`)
+        .then((r) => (r.ok ? (r.json() as Promise<Incident>) : null))
+        .then((incident) => incident && addLiveIncident(incident))
+        .catch(() => {});
+    },
+    [addLiveIncident],
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -75,7 +85,7 @@ export default function CameraWall({ statuses }: { statuses: CameraStatus[] }) {
           );
         })}
         <div className={selected && focusOnly ? "hidden" : selected ? "opacity-50 transition-opacity hover:opacity-100" : ""} style={{ order: 3 }}>
-          <WebcamTile showOverlay={showOverlay} />
+          <WebcamTile showOverlay={showOverlay} onLiveIncident={onLiveIncident} />
         </div>
       </div>
     </div>

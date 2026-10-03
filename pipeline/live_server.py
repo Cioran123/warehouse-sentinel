@@ -10,8 +10,9 @@ the last 20s and sends each new candidate's clip to the verifier (Cosmos) in the
 Verified results are appended to the incident ledger; `events` in each response reports
 their progress (recording -> verifying -> kept / rejected / candidate, or error).
 
-Each person also gets a posture from pose.torso_tilt (or box shape when the torso is not
-visible): "upright", "tilted", or "down". That is a display cue only.
+Each person also gets a posture, "upright", "tilted", or "down", from pose.torso_tilt when the
+hips are visible, else from the head and shoulders (see Labeler.posture), else from box shape.
+live_checks turns a posture that stays "down" into a person-down candidate.
 
     POST /frame         body: image/jpeg  ->  {"t", "boxes": [{"id", "box", "kp", "posture", ...}],
                                                "flow", "events": [...], "ms"}
@@ -21,7 +22,7 @@ visible): "upright", "tilted", or "down". That is a display cue only.
     GET  /events        {"events": [...]}  (poll after /stop until the verifier finishes)
 
 Usage:
-    python pipeline/live_server.py [--port 8765]
+    python pipeline/live_server.py [--port 8775]
 
 Env: SENTINEL_LIVE_IMGSZ (default 640), SENTINEL_LIVE_CONF (default 0.25), plus
 SENTINEL_POSE_MODEL / SENTINEL_TRACKER / SENTINEL_DEVICE as in detect.py and SENTINEL_VERIFIER
@@ -32,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -48,9 +50,24 @@ from schema import weights
 IMGSZ = int(os.environ.get("SENTINEL_LIVE_IMGSZ", "640"))
 CONF = float(os.environ.get("SENTINEL_LIVE_CONF", "0.25"))
 MAX_BODY = 8 * 1024 * 1024
+DEBUG = os.environ.get("SENTINEL_LIVE_DEBUG") == "1"
 DOWN_TILT = 60.0
 TILTED_TILT = 35.0
 DOWN_ASPECT = 1.2
+# A webcam usually frames head and shoulders, with the hips out of view. The head's height above
+# the shoulder line, in shoulder widths, is about 0.5 sitting up. Leaning or falling back shrinks
+# it (foreshortening) while the shoulders get smaller; leaning in toward the camera shrinks it
+# too, but the shoulders get bigger. Both are judged against the person's own upright reference.
+HEAD_DOWN_RATIO = 0.65
+HEAD_TILTED_RATIO = 0.8
+HEAD_REF_RATIO = 0.9  # frames this close to the reference keep it current
+HEAD_MIN_UPRIGHT = 0.35  # lowest first sighting accepted as someone's upright reference
+HEAD_LEVEL = 0.1  # head at shoulder height reads as down even without a reference
+LEAN_IN_SCALE = 1.15
+DOWN_ROLL = 45.0
+TILTED_ROLL = 25.0
+REF_ALPHA = 0.2
+BOTTOM_EDGE = 0.97
 FULL_FRAME = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
 
 
@@ -65,6 +82,7 @@ class Labeler:
         self.prev_gray: np.ndarray | None = None
         self.prev_t = 0.0
         self.mask: np.ndarray | None = None
+        self.refs: dict[int, dict[str, float]] = {}
 
     def reset(self) -> None:
         """Start track IDs from scratch without rebuilding the predictor (that costs ~3s)."""
@@ -72,6 +90,7 @@ class Labeler:
             tracker.reset()
         self.t0 = None
         self.prev_gray = None
+        self.refs.clear()
 
     def label(self, frame: np.ndarray) -> dict:
         now = time.time()
@@ -92,7 +111,13 @@ class Labeler:
                        "ar": round(float(aspect), 3), "conf": round(float(score), 3)}
                 if kp is not None:
                     box["kp"] = [[round(float(x / w), 4), round(float(y / h), 4), round(float(c), 2)] for x, y, c in kp]
-                box["posture"] = posture(kp, aspect)
+                box["posture"] = self.posture(int(tid), kp, aspect, nb)
+                if DEBUG:
+                    hs = head_shoulders(kp)
+                    ref = self.refs.get(int(tid))
+                    print(f"[pose] t={t:.1f} #{tid} {box['posture']} box={nb} "
+                          f"conf nose/ls/rs/le/re={[round(float(kp[i, 2]), 2) for i in (0, 5, 6, 1, 2)] if kp is not None else None} "
+                          f"head/width/roll={[round(v, 3) for v in hs] if hs else None} ref={ref}", flush=True)
                 boxes.append(box)
         return {"t": round(t, 3), "boxes": boxes, "flow": self._flow(frame, t),
                 "ms": round((time.time() - now) * 1000)}
@@ -110,12 +135,44 @@ class Labeler:
         self.prev_gray, self.prev_t = gray, t
         return stats
 
+    def posture(self, tid: int, kp: np.ndarray | None, aspect: float, box: list[float]) -> str:
+        tilt = pose.torso_tilt(kp) if kp is not None else None
+        if tilt is not None and tilt >= TILTED_TILT:
+            return "down" if tilt >= DOWN_TILT else "tilted"
+        hs = head_shoulders(kp)
+        if hs is None:
+            if tilt is not None:
+                return "upright"
+            # box shape only says something about a whole body, not one cut off by the frame edge
+            return "down" if aspect >= DOWN_ASPECT and box[3] < BOTTOM_EDGE else "upright"
+        head, width, roll = hs
+        ref = self.refs.get(tid)
+        ratio = head / ref["head"] if ref else 1.0
+        leaning_in = ref is not None and width > LEAN_IN_SCALE * ref["width"]
+        if head <= HEAD_LEVEL or roll >= DOWN_ROLL or (ratio < HEAD_DOWN_RATIO and not leaning_in):
+            return "down"
+        if roll >= TILTED_ROLL or (ratio < HEAD_TILTED_RATIO and not leaning_in):
+            return "tilted"
+        if ref is None:
+            if head >= HEAD_MIN_UPRIGHT:
+                self.refs[tid] = {"head": head, "width": width}
+        elif ratio >= HEAD_REF_RATIO:
+            ref["head"] += REF_ALPHA * (head - ref["head"])
+            ref["width"] += REF_ALPHA * (width - ref["width"])
+        return "upright"
 
-def posture(kp: np.ndarray | None, aspect: float) -> str:
-    tilt = pose.torso_tilt(kp) if kp is not None else None
-    if tilt is not None:
-        return "down" if tilt >= DOWN_TILT else "tilted" if tilt >= TILTED_TILT else "upright"
-    return "down" if aspect >= DOWN_ASPECT else "upright"
+
+def head_shoulders(kp: np.ndarray | None) -> tuple[float, float, float] | None:
+    """(head height above the shoulder line in shoulder widths, shoulder width in pixels,
+    shoulder-line roll in degrees), or None when the nose or a shoulder is not visible."""
+    if kp is None or min(kp[0, 2], kp[pose.L_SH, 2], kp[pose.R_SH, 2]) < pose.KP_CONF:
+        return None
+    dx, dy = kp[pose.L_SH, :2] - kp[pose.R_SH, :2]
+    width = math.hypot(dx, dy)
+    if width < 1:
+        return None
+    shoulder_y = (kp[pose.L_SH, 1] + kp[pose.R_SH, 1]) / 2
+    return float((shoulder_y - kp[0, 1]) / width), width, math.degrees(math.atan2(abs(dy), abs(dx)))
 
 
 def make_handler(labeler: Labeler, monitor: LiveMonitor):
@@ -170,6 +227,10 @@ def make_handler(labeler: Labeler, monitor: LiveMonitor):
                 labeler.reset()
                 monitor.reset()
             result = labeler.label(frame)
+            if DEBUG:
+                os.makedirs("/tmp/live_dbg", exist_ok=True)
+                with open(f"/tmp/live_dbg/{result['t']:08.2f}.jpg", "wb") as f:
+                    f.write(jpeg)
             monitor.add(result["t"], jpeg, {"t": result["t"], "boxes": result["boxes"], "flow": result["flow"]})
             self._send(200, {**result, "events": monitor.events()})
 
@@ -181,7 +242,7 @@ def make_handler(labeler: Labeler, monitor: LiveMonitor):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=int(os.environ.get("SENTINEL_LIVE_PORT", "8765")))
+    ap.add_argument("--port", type=int, default=int(os.environ.get("SENTINEL_LIVE_PORT", "8775")))
     args = ap.parse_args()
     monitor = LiveMonitor()
     labeler = Labeler(monitor.cam.get("roi"))

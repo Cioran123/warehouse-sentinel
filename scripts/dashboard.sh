@@ -4,12 +4,12 @@
 #   npm run dashboard              # restart both servers + open browser
 #   npm run dashboard -- --refresh # also rebuild incidents from existing tracks first
 #   npm run dashboard -- --no-live # skip the webcam live server
-#   PORT=3000 LIVE_PORT=8766 npm run dashboard
+#   PORT=3000 LIVE_PORT=8776 npm run dashboard
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 PORT="${PORT:-3100}"
-LIVE_PORT="${LIVE_PORT:-8765}"
+LIVE_PORT="${LIVE_PORT:-8775}"
 URL="http://localhost:${PORT}/overview"
 REFRESH=0
 LIVE=1
