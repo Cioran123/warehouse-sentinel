@@ -16,6 +16,109 @@ checks were replaced with warehouse ones.
 
 ---
 
+## Features
+
+**Live** tab, the supervisor's main screen:
+
+- **Camera wall.** Each fixed camera replays its footage with the detector's view drawn on top:
+  blue person boxes with pose skeletons, orange dashed boxes for forklifts and pallet jacks, gray
+  dashed boxes for humanoid robots and AMRs (kept out of every person check), the camera's
+  restricted zones in red, "no hard hat" under bare heads in hard-hat areas, and a pink arrow for
+  overall floor motion. A tile pulses in the incident's color while one is on screen, and its
+  banner opens the incident. Click a tile, or press 1-4, to focus that zone.
+- **Live webcam tile.** Labels your own webcam in real time (people, pose, posture), runs the
+  restricted-zone and person-down checks on a rolling window, and sends each candidate clip to
+  Cosmos for a keep/drop verdict, which lands in the same incident ledger.
+- **Alerts.** Incidents pop into a strip as each camera's playback reaches them, high priority
+  first, with Review and Dismiss.
+- **Assistant.** Ask about the whole site in plain language ("Show every forklift near miss",
+  "Is anyone missing a hard hat?", "Which zones had repeated incidents?"). Answers come only from
+  the incident ledger (VAST DataBase when connected); each matching incident plays its evidence
+  clip inline, matching zones are outlined, and follow-ups ("only the verified ones") refine the
+  last answer. Out-of-scope asks (identity, blame, productivity, medical) are refused.
+- **Evaluation.** Scores against ground truth (scenarios surfaced, verifier keep rate, temporal
+  IoU, event-type match, false positives on normal footage), also logged to W&B Weave.
+
+**Incident drawer**, opened from any tile, alert, chat answer, or map pin:
+
+- Player with the overlay, a timeline of ground truth against detections, and jump buttons
+  (context before, start, end, after).
+- **Evidence:** the verifier's decision and observable evidence, the candidate signals that
+  proposed it, the exact annotated clip Cosmos saw, **similar moments in the VAST archive** (see
+  below), and source metadata.
+- **Ask about this clip:** questions answered from keyframes of the span plus the record, with
+  cited timestamps that seek the player. Refuses identity, intent, and medical questions.
+
+**Site Map** tab:
+
+- A floor plan laid out from what the cameras show (dock doors on the north wall, racking down the
+  west wall, staging floor, cross aisle with a robot-only lane), in **3D** (orbit, zoom, fly to a
+  zone) or as a **2D plan**.
+- Every tracked person and vehicle is projected from its camera onto the floor through that
+  camera's calibrated ground plane, with trails for movers. Markers follow each camera's video
+  time when its tile is playing, otherwise each camera's short clip loops on the site clock, with
+  play/pause, scrubbing, and 0.5x-4x speed.
+- People and vehicles in an open incident turn red; incident pins mark where it happened.
+- A zone inspector shows that zone's camera and incidents, and links to the assistant.
+
+**Detection pipeline** (`pipeline/`): YOLO26m + ByteTrack for people, YOLO-World for forklifts and
+pallet jacks, YOLO-pose for posture, CLIP for hard hats and robots, four candidate checks (near
+miss, restricted entry, missing hard hat, person down), Cosmos Reason verification, and a ledger
+synced to VAST. Details below.
+
+## How VAST video retrieval works
+
+VAST holds both the footage and what is known about it. The challenge's **Video Search &
+Summary (VSS)** pipeline runs on VAST DataEngine and was used to pre-ingest the corpus:
+
+```
+upload ─▶ VAST S3 chunks bucket
+            │  Segmenter: cut into short fixed-length clips
+            ▼
+          VAST S3 segments bucket ── one object per segment (s3://<team>-vss-chunks-segments/...)
+            │  Detector:  YOLO11 (CoreWeave GPU) → object classes, counts, box sidecars
+            │  Reasoner:  NVIDIA Cosmos3-Reason → a natural-language description of the segment
+            │  Embedder:  NVIDIA Cosmos-Embed1 → 256-d text and visual vectors
+            ▼
+          VAST DataBase  vss-schema.vss-collection ── one row per segment:
+                         source URI, parent video, caption, vectors, detections,
+                         camera_id / location / capture_type, timing
+```
+
+**Retrieval** is a query against that table:
+
+1. The app logs in to the VSS backend (`POST /api/v1/auth/login`) with the team account and gets a
+   JWT, kept on the server.
+2. `POST /api/v1/search` takes a plain-language query ("forklift close to a person in an aisle").
+   VSS embeds it with Cosmos-Embed1 and runs **hybrid search** in VAST DataBase: similarity against
+   the caption-text vectors and the visual vectors, blended, then filtered by tags, metadata
+   (`camera_id`, `location`), time window, and a minimum similarity.
+3. It returns ranked segment hits (source URI, similarity, caption, timing), the same hits grouped
+   by parent video, and optionally an LLM synthesis over the top few.
+4. Playback is `GET /api/v1/videos/stream?source=s3://...`, a range-capable stream straight out of
+   the VAST segments bucket.
+
+**How Warehouse Sentinel uses it:**
+
+- **Footage in.** The demo clips are VSS segments (their filenames are VSS segment names);
+  `pipeline/vast_fetch.py` lists and pulls more straight from the segments bucket.
+- **Similar moments.** Each incident drawer sends the incident's description to VSS search and
+  lists matching segments from the rest of the archive with their captions and match scores;
+  "Play segment" streams them through `/api/vss/stream`, a server-side proxy so the JWT never
+  reaches the browser (`src/app/lib/vss.ts`).
+- **Our own index lives in VAST too.** `vast_sync.py` writes `cameras`, `incidents`, and every
+  per-frame detection to VAST DataBase (schema `warehouse_sentinel`, separate from `vss-schema`)
+  and uploads videos and evidence clips to a VAST S3 media bucket. The assistant's incident search
+  runs against those tables with filters pushed down (`vast_search.py`), and the app streams media
+  from VAST through presigned URLs (`src/app/lib/vast.ts`).
+
+VSS answers "where else in the archive does something like this happen?" by semantic similarity;
+the `warehouse_sentinel` tables answer "which incidents match these exact filters?". Both run on
+VAST. Off the challenge VM the endpoints do not resolve, so the app says so (the **VAST** chip in
+the header, `npm run doctor`) and falls back to local files; see the status tables below.
+
+---
+
 ## How it fits together
 
 ```
@@ -190,16 +293,3 @@ npm run eval            # storage/pipeline/eval.json (+ Weave evaluation with WA
 python pipeline/vast_sync.py   # ledger + media → VAST (schema warehouse_sentinel)
 npm run dev             # or npm run dashboard to also start the live webcam server
 ```
-
-## App
-
-One command-center screen:
-
-- **Floor plan**: zones shaded by incident count, camera pins that pulse while an incident is on
-  screen, zones outlined when the assistant mentions them. Click a zone (or press 1-4) to focus it.
-- **Cameras**: replayed footage with person boxes, vehicle boxes, pose, and the restricted polygon.
-- **Assistant**: questions about the whole site ("Show every forklift near miss", "Which zones had
-  repeated incidents?"), answered from the ledger only, with follow-ups that refine the last answer.
-- **Alerts**: incidents appear as playback reaches them.
-- **Incident drawer**: player, timeline, verifier evidence, and "Ask about this clip", which
-  answers from keyframes plus the record and turns cited timestamps into seek buttons.
