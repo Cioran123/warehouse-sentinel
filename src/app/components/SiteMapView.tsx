@@ -229,7 +229,8 @@ export default function SiteMapView({ venueName, statuses, incidents, zones, rej
               <p className="text-[12px] leading-relaxed text-ink-3">
                 Drag to orbit, scroll to zoom, click a zone to fly to it. Positions come from each
                 camera&rsquo;s tracked boxes, projected onto the floor through that camera&rsquo;s
-                calibrated ground plane &mdash; nothing here is simulated.
+                calibrated ground plane. The Live view is never simulated; Heat map shows where incidents
+                happened, and its optional week of history is labelled demo data.
               </p>
             ) : (
               <Legend />

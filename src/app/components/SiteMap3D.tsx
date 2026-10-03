@@ -7,6 +7,7 @@ import * as THREE from "three";
 import type { CameraStatus } from "@/app/lib/cameraStatus";
 import { CAMERA_PINS, HEIGHT, ZONE_LABEL_AT, ZONES } from "@/app/lib/floorPlan";
 import type { FloorIncident, FloorTracks } from "@/app/lib/floorTracks";
+import { buildHeat, heatColor, incidentSpots, simulateHistory } from "@/app/lib/incidentHeat";
 import type { ZoneCount } from "@/app/lib/search";
 import { EVENT_LABEL_SHORT, type EventType } from "@/app/lib/types";
 import { useCommand } from "@/app/lib/ui/commandStore";
@@ -14,6 +15,7 @@ import Agents, { buildPaths, Driver, type AgentPath } from "./sitemap3d/Agents";
 import { LabelLayer, LabelProjector, LabelStore, type Label } from "./sitemap3d/labels";
 import { CameraMounts, IncidentPins, PIN_H, RestrictedLane, ZoneFloors } from "./sitemap3d/Overlays";
 import { Playhead } from "./sitemap3d/playhead";
+import HeatLayer from "./sitemap3d/Heat";
 import Shell from "./sitemap3d/Shell";
 import { at, boxOf, C } from "./sitemap3d/shared";
 
@@ -142,6 +144,8 @@ export default function SiteMap3D({ zones, statuses }: Props) {
   const [activeIds, setActiveIds] = useState<string[]>([]);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState<number>(1);
+  const [view, setView] = useState<"live" | "heat">("live");
+  const [simulate, setSimulate] = useState(false);
 
   const [head] = useState(() => new Playhead());
   const [labels] = useState(() => new LabelStore());
@@ -168,6 +172,14 @@ export default function SiteMap3D({ zones, statuses }: Props) {
     () => (data ? pinPositions(paths, data.incidents, data.sampleStep) : {}),
     [data, paths],
   );
+
+  const heat = useMemo(() => {
+    if (!data) return null;
+    const { spots, perIncident } = incidentSpots(data);
+    const extra = simulate ? simulateHistory(data, perIncident) : [];
+    // each simulated incident is splatted as four points
+    return buildHeat([...spots, ...extra], data.incidents.length, Math.round(extra.length / 4));
+  }, [data, simulate]);
 
   const active = useMemo(() => {
     const open = (data?.incidents ?? []).filter((i) => activeIds.includes(i.id));
@@ -347,6 +359,7 @@ export default function SiteMap3D({ zones, statuses }: Props) {
           <Lights />
           <Shell />
           <RestrictedLane alerted={active.zones.has("cross_aisle")} />
+          {view === "heat" && heat && <HeatLayer heat={heat} />}
           <ZoneFloors
             zones={zones}
             selectedZoneId={selectedZoneId}
@@ -384,7 +397,72 @@ export default function SiteMap3D({ zones, statuses }: Props) {
 
         <LabelLayer store={labels} labels={labelList} />
 
-        <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1.5 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[11px] text-ink-3 backdrop-blur-sm">
+        <div className="absolute left-3 top-3 flex items-center rounded-md border border-line bg-surface/95 shadow-sm backdrop-blur-sm">
+          {([
+            ["live", "Live"],
+            ["heat", "Heat map"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setView(value)}
+              aria-pressed={view === value}
+              className={`px-2.5 py-1 text-[12px] transition-colors first:rounded-l-md last:rounded-r-md ${
+                view === value ? "bg-accent-soft font-medium text-accent" : "text-ink-3 hover:bg-hover"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === "heat" && heat ? (
+          <div className="absolute bottom-3 left-3 flex w-60 flex-col gap-2 rounded-lg border border-line bg-surface/95 px-3 py-2.5 text-[11px] text-ink-3 backdrop-blur-sm">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[12px] font-medium text-ink">Where incidents happen</span>
+              <span className="tabular-nums">
+                {heat.realIncidents} real{heat.simulatedIncidents ? ` + ${heat.simulatedIncidents} sim.` : ""}
+              </span>
+            </div>
+            <div>
+              <div
+                className="h-2 w-full rounded-full"
+                style={{
+                  background: `linear-gradient(90deg, ${[0.05, 0.3, 0.55, 0.8, 1]
+                    .map((t) => {
+                      const [r, g, b] = heatColor(t);
+                      return `rgb(${r | 0},${g | 0},${b | 0})`;
+                    })
+                    .join(",")})`,
+                }}
+              />
+              <div className="mt-0.5 flex justify-between">
+                <span>Fewer</span>
+                <span>More, weighted by priority</span>
+              </div>
+            </div>
+            <ol className="flex flex-col gap-0.5">
+              {heat.zones.filter((z) => z.weight > 0).slice(0, 4).map((z, i) => (
+                <li key={z.zoneId} className="flex items-center justify-between gap-2">
+                  <span className="truncate text-ink-2">
+                    {i + 1}. {zones.find((zz) => zz.zoneId === z.zoneId)?.zone ?? z.zoneId}
+                  </span>
+                  <span className="tabular-nums">{Math.round(z.share * 100)}%</span>
+                </li>
+              ))}
+            </ol>
+            <label className="flex items-center gap-1.5 border-t border-line pt-2 text-ink-2">
+              <input type="checkbox" checked={simulate} onChange={(e) => setSimulate(e.target.checked)} className="accent-accent" />
+              Simulate a week of history
+            </label>
+            {simulate && (
+              <span className="leading-snug text-[#b45309]">
+                Demo data: simulated incidents seeded from the real ones and the site&rsquo;s risk areas.
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col gap-1.5 rounded-lg border border-line bg-surface/90 px-3 py-2 text-[11px] text-ink-3 backdrop-blur-sm">
           <span className="text-[12px] font-medium text-ink">
             {data.agents.length} tracks · {moving} moving
           </span>
@@ -401,6 +479,7 @@ export default function SiteMap3D({ zones, statuses }: Props) {
             Flagged
           </span>
         </div>
+        )}
 
         {active.list.length > 0 && (
           <div className="absolute right-3 top-3 flex flex-col gap-1.5">

@@ -61,6 +61,7 @@ export interface FloorIncident {
   endSec: number;
   priority: Priority;
   eventType: string;
+  verificationStatus: Incident["verificationStatus"];
   /** Keys of the agents this incident is about. */
   agentKeys: string[];
 }
@@ -260,6 +261,7 @@ export async function buildFloorTracks(): Promise<FloorTracks> {
       endSec: inc.endSec,
       priority: inc.priority,
       eventType: inc.eventType,
+      verificationStatus: inc.verificationStatus,
       agentKeys: agents.filter((a) => a.incidentIds.includes(inc.id)).map((a) => a.key),
     }));
 

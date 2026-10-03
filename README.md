@@ -62,6 +62,12 @@ checks were replaced with warehouse ones.
   time when its tile is playing, otherwise each camera's short clip loops on the site clock, with
   play/pause, scrubbing, and 0.5x-4x speed.
 - People and vehicles in an open incident turn red; incident pins mark where it happened.
+- **Heat map** view (3D): shows where incidents concentrate on the floor. Each incident heats the
+  floor positions of the people and vehicles it involved during its window, weighted by priority
+  and the verifier's verdict, and the legend ranks zones by share. "Simulate a week of history"
+  adds seeded, clearly labelled demo incidents around the real ones and the site's risk areas
+  (dock-side forklift lane, robot lane, rack faces) to show the view at a realistic volume
+  (`src/app/lib/incidentHeat.ts`).
 - A zone inspector shows that zone's camera and incidents, and links to the assistant.
 
 **Detection pipeline** (`pipeline/`): YOLO26m + ByteTrack for people, YOLO-World for forklifts and
